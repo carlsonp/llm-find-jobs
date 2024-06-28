@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  trainclassifier:
+    build:
+      context: .
+      dockerfile: Dockerfile_train_classifier.txt
+      args:
+        DOCKER_BUILDKIT: 1
+    environment:
+      TZ: America/Chicago
+    volumes:
+      - ./data/:/data/:ro
+      - ./models/:/models:rw
+
+  llm:
+    build:
+      context: .
+      dockerfile: Dockerfile_llm.txt
+      args:
+        DOCKER_BUILDKIT: 1
+    environment:
+      TZ: America/Chicago
+      LLM_API: ${LLM_API}
+      LLM_MODEL: ${LLM_MODEL}
+      CREW_VERBOSE_OUTPUT: ${CREW_VERBOSE_OUTPUT}
+      SEARX_HOST: ${SEARX_HOST}
+      SKILLS: ${SKILLS}
+      RESUME: ${RESUME}
+    volumes:
+      - ./models/:/models:ro
+      - ./results/:/results:rw
