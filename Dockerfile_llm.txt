@@ -17,6 +17,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # https://docs.docker.com/build/guide/mounts/#add-a-cache-mount
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install --user tqdm openpyxl crewai[tools] scikit-learn pandas joblib duckduckgo-search langchain-community selenium beautifulsoup4 spacy
 
+# Pre-download the model so it's ready
+# https://spacy.io/models/en#en_core_web_lg
 RUN python3 -m spacy download en_core_web_lg
 
 COPY /src/ /src/

@@ -194,11 +194,11 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
     )
     score = task4.execute().replace("'", "")
 
-    # don't always run the entire thing through as this can run out of memory
+    # don't always run the entire thing through as this can run out of memory, so we slice to what we can run on in-memory
     doc2 = nlp(scrape_results[: nlp.max_length - 1])
     # Get the vectors of the documents
     vector2 = doc2.vector
-    # Compute cosine similarity
+    # Compute cosine similarity, value between 0 and 1, higher is better
     cosine_sim = 1 - cosine(vector1, vector2)
 
     df.loc[df["url"] == row["url"], "is_job_posting"] = str(evaluation_results)
