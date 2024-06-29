@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   trainclassifier:
     build:
@@ -27,6 +25,7 @@ services:
       SEARX_HOST: ${SEARX_HOST}
       SKILLS: ${SKILLS}
       RESUME: ${RESUME}
+      DO_NOT_MATCH: ${DO_NOT_MATCH}
     volumes:
       - ./models/:/models:ro
       - ./results/:/results:rw

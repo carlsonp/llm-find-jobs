@@ -5,6 +5,7 @@ leverages CrewAI and LLMs for searching and finding relevant positions.
 
 ## Requirements
 
+* A large-language model (LLM) to use, e.g. `phi3` deployed via open-webui
 * Searx
 * Docker (w/buildkit enabled)
 * docker compose
@@ -50,7 +51,8 @@ Build the docker containers:
 docker compose build
 ```
 
-Train the job classification model
+Train the job classification model.  This can take a few minutes depending
+on your hardware.
 
 ```shell
 docker compose run trainclassifier
@@ -76,9 +78,18 @@ docker compose run llm python3 /src/job-process.py
 That's it, now look at `./results/job-results.xlsx` for the final
 output.
 
+## Usage and Notes
+
+* Even if the classification model or LLM deems the entry is not related to an open job or internship
+position, it may be still worthwhile to look at the website and see.  Many sites leverage
+bot detection and this may hamper the ability to scrape the website contents and make an accurate
+determination.
+
 ## References
 
 * [https://github.com/joaomdmoura/crewAI-examples](https://github.com/joaomdmoura/crewAI-examples)
 * [https://docs.crewai.com](https://docs.crewai.com)
 * [https://python.langchain.com/v0.2/docs/integrations/tools/](https://python.langchain.com/v0.2/docs/integrations/tools/)
 * [https://docs.searxng.org/index.html](https://docs.searxng.org/index.html)
+* [https://github.com/searxng/searxng-docker](https://github.com/searxng/searxng-docker)
+* [https://github.com/open-webui/open-webui](https://github.com/open-webui/open-webui)
