@@ -5,7 +5,7 @@ leverages CrewAI and LLMs for searching and finding relevant positions.
 
 ## Requirements
 
-* A large-language model (LLM) to use, e.g. `phi3` deployed via open-webui
+* A large-language model (LLM) to use, e.g. `llama3.2` deployed via open-webui
 * Searx
 * Docker (w/buildkit enabled)
 * docker compose
@@ -48,11 +48,11 @@ Next, edit the file `.env` and adjust as needed.
 Build the docker containers:
 
 ```shell
-docker compose build
+docker compose build --pull
 ```
 
 Train the job classification model.  This can take a few minutes depending
-on your hardware.
+on your hardware.  Make sure to run on a system with at least 64 GB of RAM.
 
 ```shell
 docker compose run trainclassifier

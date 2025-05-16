@@ -5,17 +5,19 @@ from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
-from crewai import Agent, Task
+from crewai import Agent, Task, Crew, Process, LLM
 from langchain_community.tools import DuckDuckGoSearchResults, DuckDuckGoSearchRun
 from langchain_community.utilities import SearxSearchWrapper
-from langchain_openai import ChatOpenAI
+
+from pydantic import BaseModel, Field
+from typing import List
 
 # https://python.langchain.com/v0.2/docs/integrations/tools/
 # https://docs.crewai.com/tools/ScrapeWebsiteTool/
 
 os.environ["OPENAI_API_KEY"] = "NA"
 
-llm = ChatOpenAI(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
+llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["OPENAI_API_BASE"])
 
 duckduckgosearchrun_tool = DuckDuckGoSearchRun()
 duckduckgosearchresults_tool = DuckDuckGoSearchResults()
@@ -31,6 +33,14 @@ searcher = Agent(
     max_iter=10,
 )
 
+
+class SearchList(BaseModel):
+    search: List[str] = Field(
+        ...,
+        description="List of search string queries that match best with the skills and resume.",
+    )
+
+
 task1 = Task(
     description="""Read the following set of skills and resume information.  You're looking for
              open job positions that best match those skills and resume.  You're looking for a full-time position,
@@ -43,22 +53,32 @@ task1 = Task(
              Do not come up with search queries using the following terms: """
     + os.environ["DO_NOT_MATCH"]
     + """.  Provide
-             a list of 20 semi-colon separated search queries. Do not use a numbered list.\n### Skills:\n"""
+             a list of 20 separated search queries. Do not use a numbered list.\n### Skills:\n"""
     + os.environ["SKILLS"]
     + "\n### Resume:\n"
     + os.environ["RESUME"],
     agent=searcher,
-    expected_output="A list of 20 semi-colon separated search queries for open job positions.",
+    expected_output="A list of 20 separated search queries for open job positions.",
+    output_pydantic=SearchList,
 )
-search_queries = task1.execute()
 
-search_queries = search_queries.split(";")
+crew = Crew(agents=[searcher], tasks=[task1], verbose=True, process=Process.sequential)
+
+result = crew.kickoff()
+
+# print(result)
+
+# print(f"Pydantic: {result.pydantic}")
+# print(f"Tasks output: {result.tasks_output}")
+# print(f"Token usage: {result.token_usage}")
+
+search_queries = result["search"]
 augmented_queries = []
 for query in search_queries:
     augmented_queries.append(f"site: linkedin.com {query}")
     augmented_queries.append(f"site: indeed.com {query}")
     # augmented_queries.append(f"site: glassdoor.com {query}")
-    augmented_queries.append(f"site: ziprecruiter.com {query}")
+    # augmented_queries.append(f"site: ziprecruiter.com {query}")
     augmented_queries.append(f"site: monster.com {query}")
     augmented_queries.append(f"site: careerbuilder.com {query}")
 search_queries = search_queries + augmented_queries
@@ -97,18 +117,14 @@ with open("/results/search-queries.json", "w") as fout:
 for query in search_queries:
     print(f"Query: {query}")
     results_month = searx_tool.results(
-        query,
-        num_results=20,
-        time_range="month",  # day, month, year
+        query, num_results=20, time_range="month"  # day, month, year
     )
     for res in results_month:
         if "link" in res:
             url_dict[res["link"]] += 1
 
     results_day = searx_tool.results(
-        query,
-        num_results=20,
-        time_range="day",  # day, month, year
+        query, num_results=20, time_range="day"  # day, month, year
     )
     for res in results_day:
         if "link" in res:

@@ -7,12 +7,13 @@ import numpy as np
 import spacy
 from scipy.spatial.distance import cosine
 from spacy.tokens import Doc
-from crewai import Agent, Task
-from langchain_openai import ChatOpenAI
+from crewai import Agent, Task, LLM, Crew, Process
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver import Chrome, ChromeOptions
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+from pydantic import BaseModel, Field
+from typing import Literal
 
 # No scientific notation
 np.set_printoptions(suppress=True, formatter={"float_kind": "{:.4f}".format})
@@ -44,7 +45,7 @@ vector1 = filtered_doc1.vector
 
 os.environ["OPENAI_API_KEY"] = "NA"
 
-llm = ChatOpenAI(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
+llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["OPENAI_API_BASE"])
 
 # load our job classification model
 clf_loaded = joblib.load("/models/job_classifier_model.pkl")
@@ -142,7 +143,15 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
         agent=summarizer,
         expected_output="A one sentence summary of the website.",
     )
-    df.loc[df["url"] == row["url"], "description"] = task2.execute()
+    crew = Crew(
+        agents=[summarizer],
+        tasks=[task2],
+        verbose=os.environ["CREW_VERBOSE_OUTPUT"],
+        process=Process.sequential,
+    )
+
+    result = crew.kickoff()
+    df.loc[df["url"] == row["url"], "description"] = result.raw
 
     jobevaluator = Agent(
         role="JobEvaluator",
@@ -154,20 +163,36 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
         max_iter=5,
     )
 
+    class JobPostingEvaluation(BaseModel):
+        job_posting: bool = Field(
+            ...,
+            description="A true or false value denoting if the item is an open job/intership or not.",
+        )
+
     task3 = Task(
-        description=f"Given the following text, evaluate if this is an open job or internship posting or not. This information came from a web search. Provide a single value string of YES or NO.  Use YES if it is an open job position or internship and NO if it is not.\n### TEXT:\n {scrape_results}",
+        description=f"Given the following text, evaluate if this is an open job or internship posting or not. This information came from a web search. Provide a single value string of True or False.  Use True if it is an open job position or internship and False if it is not.\n### TEXT:\n {scrape_results}",
         agent=jobevaluator,
-        expected_output="A single value of YES or NO.  YES if it is an open job position or internship and NO if it is not.",
+        expected_output="A single value of True or False.  True if it is an open job position or internship and False if it is not.",
+        output_pydantic=JobPostingEvaluation,
     )
-    llm_evaluation_results = task3.execute().lower().replace("'", "")
+    crew = Crew(
+        agents=[jobevaluator],
+        tasks=[task3],
+        verbose=os.environ["CREW_VERBOSE_OUTPUT"],
+        process=Process.sequential,
+    )
+
+    result = crew.kickoff()
+    print(result.raw)
+    llm_evaluation_results = result.raw
 
     # print(f"LLM Job Posting evaluation: {str(llm_evaluation_results)}")
 
-    X_test = vectorizer_loaded.transform([scrape_results])
-    pred = clf_loaded.predict(X_test)
+    # X_test = vectorizer_loaded.transform([scrape_results])
+    # pred = clf_loaded.predict(X_test)
 
-    new_text = scrape_results.split()  # Split text into words
-    vocabulary = vectorizer_loaded.vocabulary_  # Get the vectorizer's vocabulary
+    # new_text = scrape_results.split()  # Split text into words
+    # vocabulary = vectorizer_loaded.vocabulary_  # Get the vectorizer's vocabulary
 
     # Find words not in the vocabulary
     # unseen_words = [word for word in new_text if word not in vocabulary]
@@ -177,22 +202,38 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
     # seen_words = [word for word in new_text if word in vocabulary]
     # print(f"Seen Words: {seen_words}")
 
-    pred_proba = clf_loaded.predict_proba(X_test)
+    # pred_proba = clf_loaded.predict_proba(X_test)
     # print(f"Predicted Probabilities: {pred_proba}")
 
-    evaluation_results = pred[0]
+    # evaluation_results = pred[0]
+    evaluation_results = ""
 
     # print(f"Classifier Job Posting evalution: {str(evaluation_results)}")
 
+    class RelevanceEvaluation(BaseModel):
+        jobrelevance: Literal["low", "medium", "high"] = Field(
+            ...,
+            description="The amount of relevance, either low, medium, or high that a set of skills has to a corresponding job description.",
+        )
+
     task4 = Task(
-        description="Given the following set of Skills a person has, compare them to the provided Job Description.  Evaluate the amount of overlap of skills and relevance to the job description.  Provide a single value of low relevance, medium relevance, or high relevance based on your evaluation. \n### Skills:\n"
+        description="Given the following set of Skills a person has, compare them to the provided Job Description.  Evaluate the amount of overlap of skills and relevance to the job description.  Provide a single value of low, medium, or high relevance based on your evaluation. \n### Skills:\n"
         + os.environ["SKILLS"]
         + "\n### Job Description:\n"
         + scrape_results,
         agent=scorer,
-        expected_output="A value of low relevance, medium relevance, or high relevance.",
+        expected_output="A value of low, medium, or high relevance.",
+        output_pydantic=RelevanceEvaluation,
     )
-    score = task4.execute().replace("'", "")
+    crew = Crew(
+        agents=[scorer],
+        tasks=[task4],
+        verbose=os.environ["CREW_VERBOSE_OUTPUT"],
+        process=Process.sequential,
+    )
+
+    result = crew.kickoff()
+    score = result["jobrelevance"]
 
     # don't always run the entire thing through as this can run out of memory, so we slice to what we can run on in-memory
     doc2 = nlp(scrape_results[: nlp.max_length - 1])

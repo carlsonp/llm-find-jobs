@@ -14,6 +14,7 @@ def remove_punctuation(text):
     return text.translate(str.maketrans(punctuation, " " * len(punctuation)))
 
 
+print("Loading data...")
 # Read the file into a list of lines
 with open("/data/wikisent2.txt", "r") as file:
     lines = file.readlines()
@@ -84,6 +85,7 @@ X_test = vectorizer.transform(X_test)
 # print(feature_names)
 
 # clf = RidgeClassifier(tol=1e-2, solver="sparse_cg")
+print("Running logistic regression...")
 clf = LogisticRegression(C=5, max_iter=1000)
 clf.fit(X_train, y_train)
 pred = clf.predict(X_test)
