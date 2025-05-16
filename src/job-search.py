@@ -1,6 +1,4 @@
-import json
-import os
-import re
+import json, os, re, time
 from collections import defaultdict
 from pathlib import Path
 
@@ -17,7 +15,7 @@ from typing import List
 
 os.environ["OPENAI_API_KEY"] = "NA"
 
-llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["OPENAI_API_BASE"])
+llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
 
 duckduckgosearchrun_tool = DuckDuckGoSearchRun()
 duckduckgosearchresults_tool = DuckDuckGoSearchResults()
@@ -46,6 +44,8 @@ task1 = Task(
              open job positions that best match those skills and resume.  You're looking for a full-time position,
              part-time position, or internship.  Leverage popular websites for careers and job postings
              such as indeed.com and linkedin.com.  Remote jobs as opposed to in-person are preferred.
+             Also acceptable are local jobs in the Twin Cities in Minnesota, St. Paul and Minneapolis.
+             Find only jobs that are active and current.
              You are not interested in general articles
              about finding jobs in this area but want to develop specific search queries that focus soley
              on results that will yield open job positions.  Use only the English language in the queries.  Come up with appropriate
@@ -53,12 +53,12 @@ task1 = Task(
              Do not come up with search queries using the following terms: """
     + os.environ["DO_NOT_MATCH"]
     + """.  Provide
-             a list of 20 separated search queries. Do not use a numbered list.\n### Skills:\n"""
+             a list of 30 separated search queries. Do not use a numbered list.\n### Skills:\n"""
     + os.environ["SKILLS"]
     + "\n### Resume:\n"
     + os.environ["RESUME"],
     agent=searcher,
-    expected_output="A list of 20 separated search queries for open job positions.",
+    expected_output="A list of 30 separated search queries for open job positions.",
     output_pydantic=SearchList,
 )
 
@@ -66,22 +66,22 @@ crew = Crew(agents=[searcher], tasks=[task1], verbose=True, process=Process.sequ
 
 result = crew.kickoff()
 
-# print(result)
+print(result)
 
-# print(f"Pydantic: {result.pydantic}")
-# print(f"Tasks output: {result.tasks_output}")
-# print(f"Token usage: {result.token_usage}")
+print(f"Pydantic: {result.pydantic}")
+print(f"Tasks output: {result.tasks_output}")
+print(f"Token usage: {result.token_usage}")
 
 search_queries = result["search"]
-augmented_queries = []
-for query in search_queries:
-    augmented_queries.append(f"site: linkedin.com {query}")
-    augmented_queries.append(f"site: indeed.com {query}")
-    # augmented_queries.append(f"site: glassdoor.com {query}")
-    # augmented_queries.append(f"site: ziprecruiter.com {query}")
-    augmented_queries.append(f"site: monster.com {query}")
-    augmented_queries.append(f"site: careerbuilder.com {query}")
-search_queries = search_queries + augmented_queries
+# augmented_queries = []
+# for query in search_queries:
+#     augmented_queries.append(f"site: linkedin.com {query}")
+#     augmented_queries.append(f"site: indeed.com {query}")
+#     # augmented_queries.append(f"site: glassdoor.com {query}")
+#     # augmented_queries.append(f"site: ziprecruiter.com {query}")
+#     augmented_queries.append(f"site: monster.com {query}")
+#     augmented_queries.append(f"site: careerbuilder.com {query}")
+# search_queries = search_queries + augmented_queries
 
 
 if Path("/results/job-results.xlsx").is_file():
@@ -116,6 +116,7 @@ with open("/results/search-queries.json", "w") as fout:
 
 for query in search_queries:
     print(f"Query: {query}")
+    # search searx
     results_month = searx_tool.results(
         query, num_results=20, time_range="month"  # day, month, year
     )
@@ -129,6 +130,29 @@ for query in search_queries:
     for res in results_day:
         if "link" in res:
             url_dict[res["link"]] += 1
+    # search DuckDuckGo with retry and exponential backoff
+    # rate limiting generally resets after about 1 minute?
+    max_retries = 5
+    retry_delay = 10  # start with this delay in seconds
+    attempt = 0
+
+    while attempt < max_retries:
+        try:
+            results = duckduckgosearchresults_tool.invoke(query)
+            for res in results:
+                if "link" in res:
+                    url_dict[res["link"]] += 1
+            break  # success, exit retry loop
+        except Exception as e:
+            print(f"Error with DuckDuckGo search: {e}")
+            attempt += 1
+            if attempt == max_retries:
+                print(f"Failed DuckDuckGo search after {max_retries} attempts for query: {query}")
+                break
+            sleep_time = retry_delay * (2 ** (attempt - 1))  # exponential backoff
+            print(f"Retrying in {sleep_time} seconds...")
+            time.sleep(sleep_time)
+
 
 # sort from largest to smallest number of search hits
 url_dict = dict(sorted(url_dict.items(), key=lambda item: item[1], reverse=True))
@@ -176,6 +200,8 @@ for url, votes in url_dict.items():
             ignore_index=True,
         )
 
+# sort by search_votes
+df.sort_values(by="search_votes", ascending=False, inplace=True)
 
 # pip install openpyxl
 df.to_excel("/results/job-results.xlsx", index=False)
