@@ -92,6 +92,8 @@ df["llm_is_job_posting"] = df["llm_is_job_posting"].astype(str)
 df["relevance_score"] = df["relevance_score"].astype(str)
 df["job_location"] = df["job_location"].astype(str)
 df["in_mn"] = df["in_mn"].astype(str)
+df["keyword_match_number"] = df["keyword_match_number"].astype(str)
+df["keyword_location_match_number"] = df["keyword_location_match_number"].astype(str)
 
 print(df.head())
 
@@ -320,5 +322,18 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
     # # Compute cosine similarity, value between 0 and 1, higher is better
     # cosine_sim = 1 - cosine(vector1, vector2)
     # df.loc[df["url"] == row["url"], "cosine_similarity"] = cosine_sim
+
+    # look for our specific keywords
+    found_keywords = 0
+    for check in os.environ['KEYWORD_SEARCH'].split(','):
+        found_keywords += scrape_results.count(check.lower())
+    df.loc[df["url"] == row["url"], "keyword_match_number"] = str(found_keywords)
+
+    # look for our specific location keywords
+    keyword_location_match_number = 0
+    for check in os.environ['LOCATION_KEYWORD_SEARCH'].split(','):
+        keyword_location_match_number += scrape_results.count(check.lower())
+    df.loc[df["url"] == row["url"], "keyword_location_match_number"] = str(keyword_location_match_number)
+
 
     df.to_excel("/results/job-results.xlsx", index=False)

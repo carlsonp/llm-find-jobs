@@ -26,6 +26,8 @@ services:
       SKILLS: ${SKILLS}
       RESUME: ${RESUME}
       DO_NOT_MATCH: ${DO_NOT_MATCH}
+      KEYWORD_SEARCH: ${KEYWORD_SEARCH}
+      LOCATION_KEYWORD_SEARCH: ${LOCATION_KEYWORD_SEARCH}
     volumes:
       - ./models/:/models:ro
       - ./results/:/results:rw

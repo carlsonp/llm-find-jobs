@@ -97,7 +97,9 @@ else:
             "relevance_score",
             "cosine_similarity",
             "job_location",
-            "in_mn"
+            "in_mn",
+            "keyword_match_number",
+            "keyword_location_match_number"
         ]
     )
 
@@ -106,6 +108,10 @@ df["description"] = df["description"].astype(str)
 df["is_job_posting"] = df["is_job_posting"].astype(str)
 df["llm_is_job_posting"] = df["llm_is_job_posting"].astype(str)
 df["relevance_score"] = df["relevance_score"].astype(str)
+df["job_location"] = df["job_location"].astype(str)
+df["in_mn"] = df["in_mn"].astype(str)
+df["keyword_match_number"] = df["keyword_match_number"].astype(str)
+df["keyword_location_match_number"] = df["keyword_location_match_number"].astype(str)
 
 print(df.head())
 
@@ -196,7 +202,9 @@ for url, votes in url_dict.items():
                             "relevance_score": "",
                             "cosine_similarity": "",
                             "job_location": "",
-                            "in_mn": ""
+                            "in_mn": "",
+                            "keyword_match_number": "",
+                            "keyword_location_match_number": ""
                         }
                     ]
                 ),

@@ -43,6 +43,8 @@ Datasets:
 * [https://www.kaggle.com/datasets/arshkon/linkedin-job-postings](https://www.kaggle.com/datasets/arshkon/linkedin-job-postings)
 * [https://www.kaggle.com/datasets/mikeortman/wikipedia-sentences](https://www.kaggle.com/datasets/mikeortman/wikipedia-sentences)
 
+Copy `.env-copy` to `.env`.
+
 Next, edit the file `.env` and adjust as needed.
 
 Build the docker containers:
