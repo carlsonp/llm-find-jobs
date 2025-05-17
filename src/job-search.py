@@ -96,6 +96,8 @@ else:
             "llm_is_job_posting",
             "relevance_score",
             "cosine_similarity",
+            "job_location",
+            "in_mn"
         ]
     )
 
@@ -193,6 +195,8 @@ for url, votes in url_dict.items():
                             "llm_is_job_posting": "",
                             "relevance_score": "",
                             "cosine_similarity": "",
+                            "job_location": "",
+                            "in_mn": ""
                         }
                     ]
                 ),

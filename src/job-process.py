@@ -1,19 +1,17 @@
-import os
-import string
-
+import os, string
 import joblib
 import pandas as pd
 import numpy as np
 import spacy
-from scipy.spatial.distance import cosine
 from spacy.tokens import Doc
-from crewai import Agent, Task, LLM, Crew, Process
+from crewai import Agent, Task, Crew, Process, LLM
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver import Chrome, ChromeOptions
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import List, Literal
 
 # No scientific notation
 np.set_printoptions(suppress=True, formatter={"float_kind": "{:.4f}".format})
@@ -45,7 +43,7 @@ vector1 = filtered_doc1.vector
 
 os.environ["OPENAI_API_KEY"] = "NA"
 
-llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["OPENAI_API_BASE"])
+llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
 
 # load our job classification model
 clf_loaded = joblib.load("/models/job_classifier_model.pkl")
@@ -74,6 +72,17 @@ summarizer = Agent(
     max_iter=5,
 )
 
+joblocationagent = Agent(
+    role="Summarizer",
+    goal="""Your goal is to evaluate and understand the location of a job.""",
+    backstory="You are an expert at extracting information from websites.",
+    llm=llm,
+    verbose=os.environ["CREW_VERBOSE_OUTPUT"],
+    allow_delegation=False,
+    max_iter=5,
+)
+
+
 df = pd.read_excel("/results/job-results.xlsx")
 
 # make sure the column data types are appropriate
@@ -81,25 +90,27 @@ df["description"] = df["description"].astype(str)
 df["is_job_posting"] = df["is_job_posting"].astype(str)
 df["llm_is_job_posting"] = df["llm_is_job_posting"].astype(str)
 df["relevance_score"] = df["relevance_score"].astype(str)
+df["job_location"] = df["job_location"].astype(str)
+df["in_mn"] = df["in_mn"].astype(str)
 
 print(df.head())
 
 print(df.info())
 
 for index, row in tqdm(df.iterrows(), total=len(df)):
-
     # we have already processed this item, continue to the next one
     if (
         not pd.isna(row["relevance_score"])
         and row["relevance_score"] != "nan"
+        and row["relevance_score"] != ""
         and not pd.isnull(row["relevance_score"])
     ):
         continue
 
     # print(f"Relevance score: {row['relevance_score']}")
 
-    print(f"URL: {row['url']}")
-    print(f"Votes: {row['search_votes']}")
+    # print(f"URL: {row['url']}")
+    # print(f"Votes: {row['search_votes']}")
 
     # Set up options for headless Chrome
     # https://datawookie.dev/blog/2023/12/chrome-chromedriver-in-docker/
@@ -137,21 +148,51 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
 
     # print(f"Scrape results: {scrape_results}")
 
-    task2 = Task(
-        description="""Summarize the following website contents into one sentence and one sentence only.  Be concise.\n### Website:\n"""
-        + scrape_results,
-        agent=summarizer,
-        expected_output="A one sentence summary of the website.",
-    )
-    crew = Crew(
-        agents=[summarizer],
-        tasks=[task2],
-        verbose=os.environ["CREW_VERBOSE_OUTPUT"],
-        process=Process.sequential,
-    )
+    X_test = vectorizer_loaded.transform([scrape_results])
+    pred = clf_loaded.predict(X_test)
 
-    result = crew.kickoff()
-    df.loc[df["url"] == row["url"], "description"] = result.raw
+    new_text = scrape_results.split()  # Split text into words
+    vocabulary = vectorizer_loaded.vocabulary_  # Get the vectorizer's vocabulary
+
+    # Find words not in the vocabulary
+    unseen_words = [word for word in new_text if word not in vocabulary]
+    # print(f"Unseen Words: {unseen_words}")
+
+    # and words in the vocabulary
+    seen_words = [word for word in new_text if word in vocabulary]
+    # print(f"Seen Words: {seen_words}")
+
+    pred_proba = clf_loaded.predict_proba(X_test)
+    # print(f"Predicted Probabilities: {pred_proba}")
+
+    evaluation_results = pred[0]
+
+    # print(f"Classifier Job Posting evalution: {str(evaluation_results)}")
+
+    df.loc[df["url"] == row["url"], "is_job_posting"] = str(evaluation_results)
+
+    if not evaluation_results:
+        df.loc[df["url"] == row["url"], "relevance_score"] = "Not Relevant"
+        continue # skip and continue to the next item, we don't want to run the LLM on non-job entries
+
+    # task2 = Task(
+    #     description="""Summarize the following website contents into one sentence and one sentence only.  Be concise.\n### Website:\n"""
+    #     + scrape_results,
+    #     agent=summarizer,
+    #     expected_output="A one sentence summary of the website.",
+    # )
+    # crew = Crew(
+    #     agents=[summarizer],
+    #     tasks=[task2],
+    #     verbose=os.environ["CREW_VERBOSE_OUTPUT"],
+    #     process=Process.sequential,
+    # )
+
+    # try:
+    #     result = crew.kickoff()
+    #     df.loc[df["url"] == row["url"], "description"] = result.raw
+    # except Exception as e:
+    #     print("Exception: " + str(e))
 
     jobevaluator = Agent(
         role="JobEvaluator",
@@ -182,33 +223,15 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
         process=Process.sequential,
     )
 
-    result = crew.kickoff()
-    print(result.raw)
-    llm_evaluation_results = result.raw
+    try:
+        result = crew.kickoff()
+        llm_evaluation_results = result['job_posting']
+    except Exception as e:
+        print("Exception: " + str(e))
 
     # print(f"LLM Job Posting evaluation: {str(llm_evaluation_results)}")
 
-    # X_test = vectorizer_loaded.transform([scrape_results])
-    # pred = clf_loaded.predict(X_test)
-
-    # new_text = scrape_results.split()  # Split text into words
-    # vocabulary = vectorizer_loaded.vocabulary_  # Get the vectorizer's vocabulary
-
-    # Find words not in the vocabulary
-    # unseen_words = [word for word in new_text if word not in vocabulary]
-    # print(f"Unseen Words: {unseen_words}")
-
-    # and words in the vocabulary
-    # seen_words = [word for word in new_text if word in vocabulary]
-    # print(f"Seen Words: {seen_words}")
-
-    # pred_proba = clf_loaded.predict_proba(X_test)
-    # print(f"Predicted Probabilities: {pred_proba}")
-
-    # evaluation_results = pred[0]
-    evaluation_results = ""
-
-    # print(f"Classifier Job Posting evalution: {str(evaluation_results)}")
+    df.loc[df["url"] == row["url"], "llm_is_job_posting"] = str(llm_evaluation_results)
 
     class RelevanceEvaluation(BaseModel):
         jobrelevance: Literal["low", "medium", "high"] = Field(
@@ -232,19 +255,70 @@ for index, row in tqdm(df.iterrows(), total=len(df)):
         process=Process.sequential,
     )
 
-    result = crew.kickoff()
-    score = result["jobrelevance"]
+    try:
+        result = crew.kickoff()
+        df.loc[df["url"] == row["url"], "relevance_score"] = result["jobrelevance"]
+    except Exception as e:
+        print("Exception: " + str(e))
 
-    # don't always run the entire thing through as this can run out of memory, so we slice to what we can run on in-memory
-    doc2 = nlp(scrape_results[: nlp.max_length - 1])
-    # Get the vectors of the documents
-    vector2 = doc2.vector
-    # Compute cosine similarity, value between 0 and 1, higher is better
-    cosine_sim = 1 - cosine(vector1, vector2)
+    class JobLocationEvaluation(BaseModel):
+        joblocation: Literal["On-Site", "Fully Remote", "Unknown"] = Field(
+            ...,
+            description="The location of the job, either On-Site, Fully Remote, or Unknown.",
+        )
 
-    df.loc[df["url"] == row["url"], "is_job_posting"] = str(evaluation_results)
-    df.loc[df["url"] == row["url"], "llm_is_job_posting"] = str(llm_evaluation_results)
-    df.loc[df["url"] == row["url"], "relevance_score"] = score
-    df.loc[df["url"] == row["url"], "cosine_similarity"] = cosine_sim
+    task5 = Task(
+        description="Given the following job description, identify the location of the job.  Values should be On-Site, Fully Remote, or Unknown if unsure where the location is.\n"
+        + scrape_results,
+        agent=joblocationagent,
+        expected_output="A value of On-Site, Fully Remote, or Unknown.",
+        output_pydantic=JobLocationEvaluation,
+    )
+    crew = Crew(
+        agents=[joblocationagent],
+        tasks=[task5],
+        verbose=os.environ["CREW_VERBOSE_OUTPUT"],
+        process=Process.sequential,
+    )
+
+    try:
+        result = crew.kickoff()
+        df.loc[df["url"] == row["url"], "job_location"] = result["joblocation"]
+    except Exception as e:
+        print("Exception: " + str(e))
+
+    class MNEvaluation(BaseModel):
+        in_mn: Literal["Minnesota", "Other"] = Field(
+            ...,
+            description="The location of the job, either Minnesota or Other.",
+        )
+
+    task6 = Task(
+        description="Given the following job description, identify the location of the job.  Values should be Minnesota or Other.\n"
+        + scrape_results,
+        agent=joblocationagent,
+        expected_output="A value of Minnesota or Other.",
+        output_pydantic=MNEvaluation,
+    )
+    crew = Crew(
+        agents=[joblocationagent],
+        tasks=[task6],
+        verbose=os.environ["CREW_VERBOSE_OUTPUT"],
+        process=Process.sequential,
+    )
+
+    try:
+        result = crew.kickoff()
+        df.loc[df["url"] == row["url"], "in_mn"] = result["in_mn"]
+    except Exception as e:
+        print("Exception: " + str(e))
+
+    # # don't always run the entire thing through as this can run out of memory, so we slice to what we can run on in-memory
+    # doc2 = nlp(scrape_results[: nlp.max_length - 1])
+    # # Get the vectors of the documents
+    # vector2 = doc2.vector
+    # # Compute cosine similarity, value between 0 and 1, higher is better
+    # cosine_sim = 1 - cosine(vector1, vector2)
+    # df.loc[df["url"] == row["url"], "cosine_similarity"] = cosine_sim
 
     df.to_excel("/results/job-results.xlsx", index=False)
