@@ -18,6 +18,7 @@
                     {{ person['_source']['name'] }}
                     <iconify-icon icon="material-symbols:person" style="font-size: 30px;"></iconify-icon>
                     <a class="btn btn-primary" href="/generate_search_terms/{{ person['_id'] }}"><iconify-icon icon="material-symbols:person"></iconify-icon> Generate Job Search Terms</a>
+                    <a class="btn btn-primary" href="/delete_persona/{{ person['_id'] }}"><iconify-icon icon="material-symbols:delete"></iconify-icon> Delete Persona</a>
                 {% endfor %}
             {% endif %}
             <br>

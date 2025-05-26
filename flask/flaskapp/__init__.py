@@ -613,4 +613,24 @@ def create_app():
             app.logger.error(e)
             return "Failure in listing all jobs"
 
+    @app.route("/delete_persona/<persona_id>/", methods=["GET"])
+    def delete_persona(persona_id):
+        try:
+            # Connect to OpenSearch
+            client = OpenSearch(
+                hosts=[{"host": "opensearch-node1", "port": "9200"}],
+                use_ssl=False,
+                verify_certs=False,
+            )
+
+            response = client.delete(index="personas_index", id=persona_id)
+
+            # perform a refresh on our index
+            client.indices.refresh(index="personas_index")
+
+            return redirect("/")
+        except Exception as e:
+            app.logger.error(e)
+            return "Failure in deleting persona"
+
     return app
