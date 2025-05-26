@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center">Recent Jobs</h2>
+    <br>
+
+    {% if next_search_after %}
+        <a class="btn btn-primary mt-3"
+        href="{{ url_for('list_recent_jobs') }}?search_after_date={{ next_search_after.date }}&search_after_id={{ next_search_after.id }}">
+            Next Page
+        </a>
+    {% endif %}
+
+    <br><br>
+    {% if jobs is defined %}
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Date Downloaded</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">URL</th>
+                    <th scope="col">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                <tr>
+                    <td>{{ job['_source']['date_downloaded'] }}</td>
+                    <td>{{ job['_source']['status'] }}</td>
+                    <td><a href="{{ job['_source']['url'] }}" target="_blank">{{ job['_source']['url'] }}</a></td>
+                    <td><a class="btn btn-primary" href="/details/{{ job['_id']}}"><iconify-icon icon="material-symbols:topic"></iconify-icon> Details</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <br>
+        {% if next_search_after %}
+            <a class="btn btn-primary mt-3"
+            href="{{ url_for('list_recent_jobs') }}?search_after_date={{ next_search_after.date }}&search_after_id={{ next_search_after.id }}">
+                Next Page
+            </a>
+        {% endif %}
+        <br><br>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

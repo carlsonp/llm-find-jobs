@@ -1,14 +1,61 @@
 import json, os, re, time
 from collections import defaultdict
-from pathlib import Path
 
-import pandas as pd
 from crewai import Agent, Task, Crew, Process, LLM
 from langchain_community.tools import DuckDuckGoSearchResults, DuckDuckGoSearchRun
 from langchain_community.utilities import SearxSearchWrapper
 
 from pydantic import BaseModel, Field
 from typing import List
+
+from opensearchpy import OpenSearch
+
+from uuid import uuid4
+
+from datetime import datetime
+
+# Connect to OpenSearch
+client = OpenSearch(
+    hosts=[{"host": "opensearch-node1", "port": "9200"}],
+    http_auth=("admin", os.environ["OPENSEARCH_INITIAL_ADMIN_PASSWORD"]),
+    use_ssl=False,
+    verify_certs=False,
+)
+
+# Define the index settings
+index_name = "jobs_index"
+index_body = {
+    "settings": {
+        "analysis": {
+            "tokenizer": {"standard": {"type": "standard"}},
+            "analyzer": {
+                "default": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["lowercase"],
+                }
+            },
+        },
+        "index": {"knn": True},  # Enable KNN search for vectors
+    },
+    "mappings": {
+        "properties": {
+            "url": {"type": "text"},
+            "content": {"type": "text"},
+            "content_vector": {
+                "type": "knn_vector",
+                "dimension": 384,  # Dimensions of the embedding (for 'all-MiniLM-L12-v2')
+            },
+            "search_hits": {"type": "integer"},
+            "status": {"type": "text"},
+            "date_added": {"type": "date"},
+            "date_downloaded": {"type": "date"},
+        }
+    },
+}
+
+# Create index
+client.indices.create(index=index_name, body=index_body, ignore=400)
 
 # https://python.langchain.com/v0.2/docs/integrations/tools/
 # https://docs.crewai.com/tools/ScrapeWebsiteTool/
@@ -84,39 +131,6 @@ search_queries = result["search"]
 # search_queries = search_queries + augmented_queries
 
 
-if Path("/results/job-results.xlsx").is_file():
-    df = pd.read_excel("/results/job-results.xlsx")
-else:
-    df = pd.DataFrame(
-        columns=[
-            "search_votes",
-            "url",
-            "description",
-            "is_job_posting",
-            "llm_is_job_posting",
-            "relevance_score",
-            "cosine_similarity",
-            "job_location",
-            "in_mn",
-            "keyword_match_number",
-            "keyword_location_match_number"
-        ]
-    )
-
-# make sure the column data types are appropriate
-df["description"] = df["description"].astype(str)
-df["is_job_posting"] = df["is_job_posting"].astype(str)
-df["llm_is_job_posting"] = df["llm_is_job_posting"].astype(str)
-df["relevance_score"] = df["relevance_score"].astype(str)
-df["job_location"] = df["job_location"].astype(str)
-df["in_mn"] = df["in_mn"].astype(str)
-df["keyword_match_number"] = df["keyword_match_number"].astype(str)
-df["keyword_location_match_number"] = df["keyword_location_match_number"].astype(str)
-
-print(df.head())
-
-print(df.info())
-
 url_dict = defaultdict(int)
 
 with open("/results/search-queries.json", "w") as fout:
@@ -155,7 +169,9 @@ for query in search_queries:
             print(f"Error with DuckDuckGo search: {e}")
             attempt += 1
             if attempt == max_retries:
-                print(f"Failed DuckDuckGo search after {max_retries} attempts for query: {query}")
+                print(
+                    f"Failed DuckDuckGo search after {max_retries} attempts for query: {query}"
+                )
                 break
             sleep_time = retry_delay * (2 ** (attempt - 1))  # exponential backoff
             print(f"Retrying in {sleep_time} seconds...")
@@ -186,34 +202,25 @@ for url, votes in url_dict.items():
     if bad_link.findall(url):
         continue
 
-    # add the URL if we don't already have it in our list
-    if url not in df["url"].values:
-        df = pd.concat(
-            [
-                df,
-                pd.DataFrame(
-                    [
-                        {
-                            "search_votes": votes,
-                            "url": url,
-                            "description": "",
-                            "is_job_posting": "",
-                            "llm_is_job_posting": "",
-                            "relevance_score": "",
-                            "cosine_similarity": "",
-                            "job_location": "",
-                            "in_mn": "",
-                            "keyword_match_number": "",
-                            "keyword_location_match_number": ""
-                        }
-                    ]
-                ),
-            ],
-            ignore_index=True,
+    # add the URL if we don't already have it in our database
+    query = {
+        "query": {
+            "term": {"url.keyword": url}  # use `.keyword` for exact match on strings
+        }
+    }
+    response = client.search(index=index_name, body=query)
+    if response["hits"]["total"]["value"] == 0:
+        client.index(
+            index=index_name,
+            id=str(uuid4()),
+            body={
+                "url": url,
+                "content": "",
+                "search_hits": votes,
+                "status": "",
+                "date_added": datetime.now().isoformat(),
+            },
         )
 
-# sort by search_votes
-df.sort_values(by="search_votes", ascending=False, inplace=True)
-
-# pip install openpyxl
-df.to_excel("/results/job-results.xlsx", index=False)
+# perform a refresh on our index
+client.indices.refresh(index=index_name)

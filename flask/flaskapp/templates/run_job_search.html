@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<br>
+<div class="container text-center">
+    <h2>Run Job Search</h2>
+    <form action="{{ url_for('post_job_search') }}" method="POST" class="text-start mt-4">
+        <div class="mb-3">
+            <label for="name" class="form-label">Search Query</label>
+            <input type="text" class="form-control" id="search-query" name="search-query" placeholder="Enter search query" required>
+        </div>
+
+        <button type="submit" class="btn btn-success">
+            <iconify-icon icon="material-symbols:search"></iconify-icon> Search
+        </button>
+    </form>
+</div>
+<br>
+{% endblock %}

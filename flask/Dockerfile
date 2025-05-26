@@ -6,7 +6,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt update && \
     DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata && \
-    apt install -y --no-install-recommends nano ca-certificates python3 python3-pip python3-venv wget gnupg2 gfortran libopenblas-dev liblapack-dev && \
+    apt install -y --no-install-recommends nano ca-certificates python3 python3-pip python3-venv python3-flask wget curl gnupg2 gfortran libopenblas-dev liblapack-dev && \
     wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
     echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list && \
     apt update && \
@@ -19,18 +19,25 @@ RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # https://docs.docker.com/build/guide/mounts/#add-a-cache-mount
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install tqdm openpyxl crewai[tools] pydantic scikit-learn pandas joblib duckduckgo-search langchain-community selenium beautifulsoup4 spacy sentence-transformers opensearch-py
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install opensearch-py gunicorn flask-compress humanize spacy sentence-transformers numpy flask-socketio selenium beautifulsoup4 duckduckgo-search langchain-community crewai[tools] pydantic
 
-# Pre-download the model so it's ready
-# https://spacy.io/models/en#en_core_web_lg
-RUN python3 -m spacy download en_core_web_lg
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s \
+   CMD curl --fail localhost:5000/health || exit 1
 
 COPY init-embedding.py /
 
 RUN --mount=type=cache,target=/root/.cache/huggingface/hub/,sharing=locked python3 /init-embedding.py
 
-# https://docs.crewai.com/telemetry
-# disable telemetry
-ENV OTEL_SDK_DISABLED=true
+COPY startup-dev.sh /
+RUN chmod +x startup-dev.sh
 
-COPY /src/ /src/
+COPY *.py /
+
+WORKDIR /
+
+ENV FLASK_APP=flaskapp
+
+# add path to gunicorn
+ENV PATH="${PATH}:/root/.local/bin/"
+
+COPY flaskapp/ /flaskapp

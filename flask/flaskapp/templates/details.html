@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center">Job Details</h2>
+    <br>
+
+    {% if document is defined %}
+        <a href="{{ document['_source']['url'] }}" target="_blank">{{ document['_source']['url'] }}</a>
+        <br>
+        <p>Status: {{ document['_source']['status'] }}</p>
+
+        <button class="btn btn-primary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#contentCollapse" aria-expanded="false" aria-controls="contentCollapse">
+            Show/Hide Website Contents
+        </button>
+
+        <div class="collapse mt-3" id="contentCollapse">
+            <div class="card card-body">
+                <pre>{{ document['_source']['content'] }}</pre>
+            </div>
+        </div>
+
+        <br><br>
+
+        <div class="container mt-4">
+            <div class="row text-center g-2">
+                <div class="col-6 col-md-4 col-lg-2">
+                    <a href="/updatestatus/{{ document['_id'] }}/NotJob/" class="btn btn-danger w-100">
+                        <iconify-icon icon="material-symbols:report" class="fs-2"></iconify-icon><br>Not a Job
+                    </a>
+                </div>
+                <div class="col-6 col-md-4 col-lg-2">
+                    <a href="/updatestatus/{{ document['_id'] }}/NotRelevant/" class="btn btn-warning w-100">
+                        <iconify-icon icon="material-symbols:feedback" class="fs-2"></iconify-icon><br>Not Relevant
+                    </a>
+                </div>
+                <div class="col-6 col-md-4 col-lg-2">
+                    <a href="/updatestatus/{{ document['_id'] }}/Favorite/" class="btn btn-info w-100">
+                        <iconify-icon icon="material-symbols:star" class="fs-2"></iconify-icon><br>Favorite
+                    </a>
+                </div>
+                <div class="col-6 col-md-4 col-lg-2">
+                    <a href="/updatestatus/{{ document['_id'] }}/Applied/" class="btn btn-success w-100">
+                        <iconify-icon icon="material-symbols:thumb-up" class="fs-2"></iconify-icon><br>Applied
+                    </a>
+                </div>
+                <div class="col-6 col-md-4 col-lg-2">
+                    <a href="/updatestatus/{{ document['_id'] }}/Rejected/" class="btn btn-secondary w-100">
+                        <iconify-icon icon="material-symbols:thumb-down" class="fs-2"></iconify-icon><br>Rejected
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<br>
+<div class="container text-center">
+    <h2>Generated Search Terms</h2>
+    {% if search_terms is defined %}
+        {% for term in search_terms %}
+            {{ term }}
+            <iconify-icon icon="material-symbols:search" style="font-size: 30px;"></iconify-icon>
+            <form action="{{ url_for('post_job_search') }}" method="POST">
+                <input type="hidden" id="search-query" name="search-query" value="{{ term }}">
+
+                <button type="submit" class="btn btn-success">
+                    <iconify-icon icon="material-symbols:search"></iconify-icon> Run Job Search
+                </button>
+            </form>
+            <br>
+        {% endfor %}
+    {% endif %}
+</div>
+<br>
+{% endblock %}

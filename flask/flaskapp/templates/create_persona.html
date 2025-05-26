@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<br>
+<div class="container text-center">
+    <h2>Create New Persona</h2>
+    <form action="{{ url_for('post_create_persona') }}" method="POST" class="text-start mt-4">
+        <div class="mb-3">
+            <label for="name" class="form-label">Persona Name</label>
+            <input type="text" class="form-control" id="name" name="name" placeholder="Enter persona name" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="resume" class="form-label">Resume</label>
+            <textarea class="form-control" id="resume" name="resume" rows="10" placeholder="Paste resume text here..." required></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="skills" class="form-label">Skills (comma-separated)</label>
+            <textarea class="form-control" id="skills" name="skills" rows="5" placeholder="e.g. workplace diversity, employee well-being, human resources management, critical thinking" required></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="match_keywords" class="form-label">Match Keywords (comma-separated)</label>
+            <textarea class="form-control" id="match_keywords" name="match_keywords" rows="5" placeholder="e.g. Python, Data Science, Flask" required></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="exclude_keywords" class="form-label">Exclude Keywords (comma-separated)</label>
+            <textarea class="form-control" id="exclude_keywords" name="exclude_keywords" rows="5" placeholder="e.g. Manager, President, Vice-President, Director" required></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-success">
+            <iconify-icon icon="material-symbols:add"></iconify-icon> Create
+        </button>
+    </form>
+</div>
+<br>
+{% endblock %}

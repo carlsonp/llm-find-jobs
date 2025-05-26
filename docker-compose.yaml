@@ -1,4 +1,29 @@
 services:
+
+  flask:
+    build:
+      context: ./flask/
+      args:
+        DOCKER_BUILDKIT: 1
+    hostname: flask
+    volumes:
+      - ./static:/static:rw
+      - ./flask:/flask:ro
+      - ./models/:/models:ro
+    ports:
+      - 5000:5000
+    environment:
+      FLASK_DEBUG: 1
+      SEARX_HOST: ${SEARX_HOST}
+      LLM_API: ${LLM_API}
+      LLM_MODEL: ${LLM_MODEL}
+    depends_on:
+      - opensearch-node1
+    # for production:
+    #command: sh -c "gunicorn -w 4 -b 0.0.0.0:5000 'flaskapp:create_app()'"
+    # for development:
+    command: ["/startup-dev.sh"]
+
   trainclassifier:
     build:
       context: .
@@ -28,6 +53,47 @@ services:
       DO_NOT_MATCH: ${DO_NOT_MATCH}
       KEYWORD_SEARCH: ${KEYWORD_SEARCH}
       LOCATION_KEYWORD_SEARCH: ${LOCATION_KEYWORD_SEARCH}
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
     volumes:
       - ./models/:/models:ro
       - ./results/:/results:rw
+
+  opensearch-node1: # This is also the hostname of the container within the Docker network (i.e. https://opensearch-node1/)
+    image: opensearchproject/opensearch:latest # Specifying the latest available image - modify if you want a specific version
+    container_name: opensearch-node1
+    hostname: opensearch-node1
+    environment:
+      - cluster.name=opensearch-cluster # Name the cluster
+      - node.name=opensearch-node1 # Name the node that will run in this container
+      - plugins.security.disabled=true # disable SSL/TLS
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true # Disable JVM heap memory swapping
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" # Set min and max JVM heap sizes to at least 50% of system RAM
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}    # Sets the demo admin user password when using demo configuration, required for OpenSearch 2.12 and later
+    ulimits:
+      memlock:
+        soft: -1 # Set memlock to unlimited (no soft or hard limit)
+        hard: -1
+      nofile:
+        soft: 65536 # Maximum number of open files for the opensearch user - set to at least 65536
+        hard: 65536
+    volumes:
+      - opensearch-data1:/usr/share/opensearch/data # Creates volume called opensearch-data1 and mounts it to the container
+    ports:
+      - 9200:9200 # REST API
+      - 9600:9600 # Performance Analyzer
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest # Make sure the version of opensearch-dashboards matches the version of opensearch installed on other nodes
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601 # Map host port 5601 to container port 5601
+    expose:
+      - "5601" # Expose port 5601 for web access to OpenSearch Dashboards
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch-node1:9200"]' # Define the OpenSearch nodes that OpenSearch Dashboards will query
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true" # don't use the security plugin for username + password
+
+
+volumes:
+  opensearch-data1:
