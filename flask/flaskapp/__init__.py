@@ -44,6 +44,7 @@ def create_app():
                 verify_certs=False,
             )
 
+            response = None
             personas = []
             if client.indices.exists(index="personas_index"):
                 response = client.search(
@@ -427,6 +428,7 @@ def create_app():
         try:
             lexical_results = []
             semantic_results = []
+            response = None
 
             # Connect to OpenSearch
             client = OpenSearch(
@@ -450,7 +452,10 @@ def create_app():
                     }
                 },
             }
-            response = client.search(index="jobs_index", body=query)
+            if client.indices.exists(index="jobs_index"):
+                response = client.search(index="jobs_index", body=query)
+            else:
+                lexical_results = []
             if response:
                 lexical_results = response["hits"]["hits"]
 
@@ -482,7 +487,10 @@ def create_app():
             }
 
             # Execute the search
-            response = client.search(index="jobs_index", body=search_query)
+            if client.indices.exists(index="jobs_index"):
+                response = client.search(index="jobs_index", body=search_query)
+            else:
+                semantic_results = []
 
             if response:
                 semantic_results = response["hits"]["hits"]
@@ -577,8 +585,11 @@ def create_app():
             if search_after_date and search_after_id:
                 query["search_after"] = [search_after_date, search_after_id]
 
-            response = client.search(index="jobs_index", body=query)
-            jobs = response["hits"]["hits"]
+            if client.indices.exists(index="jobs_index"):
+                response = client.search(index="jobs_index", body=query)
+                jobs = response["hits"]["hits"]
+            else:
+                jobs = []
 
             next_search_after = None
             if jobs:
