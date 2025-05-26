@@ -86,7 +86,7 @@ def threaded_download_jobs(lock, app, socketio):
                     classification_result = pred[0]
 
                     # app.logger.info(f"Classifier Job Posting evalution: {str(classification_result)}")
-                    status = ""
+                    status = doc["_source"]["status"]
                     if str(classification_result).lower() == "false":
                         status = "Not a Job"
 

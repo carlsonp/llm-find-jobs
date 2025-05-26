@@ -77,6 +77,11 @@ determination.
 * Personas can be used to create tailored resumes or tweaked versions of skills for specific
 types of jobs.
 
+## Development
+
+The OpenSearch Dashboard can be accessed on [http://localhost:5601](http://localhost:5601)
+which is helpful in debugging the database.
+
 ## References
 
 * [https://github.com/joaomdmoura/crewAI-examples](https://github.com/joaomdmoura/crewAI-examples)
