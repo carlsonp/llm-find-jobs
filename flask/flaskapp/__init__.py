@@ -497,6 +497,7 @@ def create_app():
 
             return render_template(
                 "results.html",
+                searx_host=os.environ["SEARX_HOST"],
                 selected_statuses=request.form.getlist("statuses"),
                 search_term=request.form["search"].lower(),
                 lexical_results=lexical_results,
