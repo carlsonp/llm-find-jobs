@@ -531,6 +531,8 @@ def create_app():
                 insert_status = "Applied"
             elif status == "Rejected":
                 insert_status = "Rejected"
+            elif status == "NoLongerAvailable":
+                insert_status = "No Longer Available"
 
             if insert_status:
                 response = client.update(
