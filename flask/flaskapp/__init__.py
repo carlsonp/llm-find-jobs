@@ -194,7 +194,7 @@ def create_app():
 
             DuckDuckGoSearchRun()
             DuckDuckGoSearchResults()
-            searx_tool = SearxSearchWrapper(searx_host=os.environ["SEARX_HOST"])
+            searx_tool = SearxSearchWrapper(searx_host="http://searxng:8080")
 
             # Define the index settings
             index_name = "jobs_index"
@@ -371,8 +371,6 @@ def create_app():
             if response:
                 person = response["hits"]["hits"][0]
 
-                app.logger.info(person)
-
                 task1 = Task(
                     description="""Read the following set of skills and resume information.  You're looking for
                             open job positions that best match the skills and resume.  You're looking for a full-time position,
@@ -437,7 +435,6 @@ def create_app():
                 verify_certs=False,
             )
 
-            app.logger.info(request.form.getlist("statuses"))
             query = {
                 "size": 10,
                 "_source": ["id", "url", "status"],
@@ -459,31 +456,45 @@ def create_app():
             if response:
                 lexical_results = response["hits"]["hits"]
 
+            app.logger.info("Finished with lexical search")
+
             model = SentenceTransformer("all-MiniLM-L12-v2")
 
             # Generate the query embedding
             query_vector = model.encode(request.form["search"]).tolist()
 
             # Define the search query in OpenSearch to use the KNN (nearest neighbor) search
+            # https://docs.opensearch.org/docs/latest/vector-search/filter-search-knn/efficient-knn-filtering/
+            # search_query = {
+            #     "_source": ["id", "url", "status"],
+            #     "knn": {
+            #         "field": "content_vector",
+            #         "query_vector": query_vector,
+            #         "k": 10,
+            #         "num_candidates": 100
+            #     },
+            #     "filter": {
+            #         "terms": {
+            #             "status.keyword": request.form.getlist("statuses")
+            #         }
+            #     }
+            # }
+
             search_query = {
                 "_source": ["id", "url", "status"],
                 "query": {
-                    "bool": {
-                        "must": {
-                            "knn": {
-                                "content_vector": {
-                                    "vector": query_vector,
-                                    "k": 10,  # Number of similar documents to retrieve
+                    "knn": {
+                        "content_vector": {
+                            "vector": query_vector,
+                            "k": 10,
+                            "filter": {
+                                "terms": {
+                                "status.keyword": request.form.getlist("statuses")
                                 }
                             }
-                        },
-                        "filter": {
-                            "terms": {
-                                "status.keyword": request.form.getlist("statuses")
-                            }
-                        },
+                        }
                     }
-                },
+                }
             }
 
             # Execute the search
@@ -497,7 +508,7 @@ def create_app():
 
             return render_template(
                 "results.html",
-                searx_host=os.environ["SEARX_HOST"],
+                searx_host="http://"+request.host.split(':')[0]+":9980",
                 selected_statuses=request.form.getlist("statuses"),
                 search_term=request.form["search"],
                 lexical_results=lexical_results,
