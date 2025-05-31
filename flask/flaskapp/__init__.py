@@ -17,17 +17,19 @@ from sentence_transformers import SentenceTransformer
 from langchain_community.tools import DuckDuckGoSearchResults, DuckDuckGoSearchRun
 from langchain_community.utilities import SearxSearchWrapper
 
-from download_jobs import threaded_download_jobs
+from download_jobs import download_jobs
 
 from uuid import uuid4
+
+from redis import Redis
+from rq import Queue
 
 from pydantic import BaseModel, Field
 from typing import List
 
 from flask import Flask, redirect, render_template, request, url_for
 
-# used for locking the index so we only run one at a time
-lock = threading.Lock()
+q = Queue(connection=Redis(host='valkey', port=6379))
 
 
 def create_app():
@@ -156,31 +158,6 @@ def create_app():
         except Exception as e:
             app.logger.error(e)
             return "Failure on creation of persona"
-
-    @app.route("/download_jobs")
-    def download_jobs():
-        try:
-            if not lock.locked():
-                thread = threading.Thread(
-                    target=threaded_download_jobs,
-                    args=(
-                        lock,
-                        app,
-                        socketio,
-                    ),
-                )
-                thread.daemon = True
-                thread.start()
-                return render_template(
-                    "download_jobs.html", textmessage="Started downloading jobs"
-                )
-            else:
-                return render_template(
-                    "index.html", textmessage="Download jobs already running"
-                )
-        except Exception as e:
-            app.logger.error(e)
-            return "Failure downloading jobs"
 
     @app.route("/run_job_search")
     def run_job_search():
@@ -332,6 +309,9 @@ def create_app():
 
             # perform a refresh on our index
             client.indices.refresh(index=index_name)
+
+            # enqueue a job to redis queue to download the jobs we just added
+            q.enqueue(download_jobs)
 
             return render_template(
                 "post_job_search.html", query=request.form["search-query"]

@@ -14,10 +14,8 @@ def remove_punctuation(text):
     return text.translate(str.maketrans(punctuation, " " * len(punctuation)))
 
 
-def threaded_download_jobs(lock, app, socketio):
+def download_jobs():
     try:
-        lock.acquire()
-
         # load our job classification model
         clf_loaded = joblib.load("/models/job_classifier_model.pkl")
         vectorizer_loaded = joblib.load("/models/vectorizer.pkl")
@@ -57,7 +55,7 @@ def threaded_download_jobs(lock, app, socketio):
 
                     driver.set_page_load_timeout(20)  # seconds
 
-                    app.logger.info(doc["_source"]["url"])
+                    print(doc["_source"]["url"])
                     driver.get(doc["_source"]["url"])
 
                     # Parse the HTML with BeautifulSoup
@@ -103,12 +101,8 @@ def threaded_download_jobs(lock, app, socketio):
                             }
                         },
                     )
-
-                    socketio.emit(
-                        "update_progress", {"progress": f"Downloading job: {str(i)}"}
-                    )
                 except Exception as e:
-                    app.logger.warning(
+                    print(
                         f"Error updating URL {doc['_source']['url']}: {e}"
                     )
                     # update the document so we don't try and fail again
@@ -128,13 +122,8 @@ def threaded_download_jobs(lock, app, socketio):
                     )
                     continue
         except NotFoundError:
-            app.logger.info("No jobs index yet")
+            print("No jobs index yet")
 
-        app.logger.info("Finished downloading jobs")
-        socketio.emit("update_progress", {"progress": f"Finished downloading jobs"})
-        lock.release()
-        app.logger.info("Released lock")
+        print("Finished downloading jobs")
     except Exception as e:
-        app.logger.error(f"Error: {e}")
-        socketio.emit("update_progress", {"progress": f"Error: {e}"})
-        lock.release()
+        print(f"Error: {e}")
