@@ -9,7 +9,6 @@ from dateutil import parser
 from crewai import Agent, Task, Crew, Process, LLM
 import humanize
 from flask_compress import Compress
-from flask_socketio import SocketIO
 from opensearchpy import OpenSearch
 from opensearchpy.exceptions import ConflictError
 from sentence_transformers import SentenceTransformer
@@ -35,7 +34,6 @@ q = Queue(connection=Redis(host='valkey', port=6379))
 def create_app():
     app = Flask(__name__, instance_relative_config=True, static_folder="/static/")
     Compress(app)
-    socketio = SocketIO(app)
 
     @app.route("/")
     def homepage():
@@ -96,19 +94,18 @@ def create_app():
     def health():
         return "Ok"
 
-    @app.route("/create_persona")
-    def create_persona():
-        return render_template("create_persona.html")
+    @app.route("/persona", defaults={"persona_id": None}, methods=["GET", "POST"])
+    @app.route("/persona/<persona_id>", methods=["GET", "POST"])
+    def persona_form(persona_id):
+        client = OpenSearch(
+            hosts=[{"host": "opensearch-node1", "port": 9200}],
+            use_ssl=False,
+            verify_certs=False,
+        )
+        index_name = "personas_index"
 
-    @app.route("/post_create_persona", methods=["POST"])
-    def post_create_persona():
-        try:
-            client = OpenSearch(
-                hosts=[{"host": "opensearch-node1", "port": "9200"}],
-                use_ssl=False,
-                verify_certs=False,
-            )
-
+        # Create index if missing
+        if not client.indices.exists(index=index_name):
             index_body = {
                 "settings": {
                     "analysis": {
@@ -125,39 +122,56 @@ def create_app():
                 "mappings": {
                     "properties": {
                         "name": {"type": "text"},
-                        "resume": {"type": "text"},
-                        "skills": {"type": "text"},
-                        "match_keywords": {"type": "text"},
-                        "exclude_keywords": {"type": "text"},
+                        "resume": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword"}},
+                        },
+                        "skills": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword"}},
+                        },
+                        "match_keywords": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword"}},
+                        },
+                        "exclude_keywords": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword"}},
+                        },
                         "date_created": {"type": "date"},
                     }
                 },
             }
+            if not client.indices.exists(index=index_name):
+                client.indices.create(index=index_name, body=index_body)
 
-            # Create index if it doesn't exist
-            if not client.indices.exists(index="personas_index"):
-                client.indices.create(index="personas_index", body=index_body)
+        if request.method == "POST":
+            doc = {
+                "name": request.form["name"],
+                "resume": request.form["resume"],
+                "skills": request.form["skills"],
+                "match_keywords": request.form["match_keywords"],
+                "exclude_keywords": request.form["exclude_keywords"],
+                "date_created": datetime.now().isoformat(),
+            }
 
-            # add our document
-            client.index(
-                index="personas_index",
-                id=str(uuid4()),
-                body={
-                    "name": request.form["name"],
-                    "resume": request.form["resume"],
-                    "skills": request.form["skills"],
-                    "match_keywords": request.form["match_keywords"],
-                    "exclude_keywords": request.form["exclude_keywords"],
-                    "date_created": datetime.now().isoformat(),
-                },
-                refresh=True,
-            )
+            if persona_id:
+                # Update existing document
+                client.index(index=index_name, id=persona_id, body=doc, refresh=True)
+            else:
+                # Create new document
+                new_id = str(uuid4())
+                client.index(index=index_name, id=new_id, body=doc, refresh=True)
 
             return redirect(url_for("homepage"))
 
-        except Exception as e:
-            app.logger.error(e)
-            return "Failure on creation of persona"
+        else:
+            persona_data = {}
+            if persona_id:
+                res = client.get(index=index_name, id=persona_id)
+                persona_data = res["_source"]
+
+            return render_template("persona.html", persona=persona_data, persona_id=persona_id)
 
     @app.route("/run_job_search")
     def run_job_search():

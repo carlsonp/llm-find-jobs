@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<br>
+<div class="container text-center">
+    <h2>{{ 'Edit Persona' if persona else 'Create New Persona' }}</h2>
+    <form 
+        action="{{ url_for('persona_form', persona_id=persona_id) if persona else url_for('persona_form') }}" 
+        method="POST" class="text-start mt-4"
+    >
+        <div class="mb-3">
+            <label for="name" class="form-label">Persona Name</label>
+            <input 
+                type="text" class="form-control" id="name" name="name" 
+                placeholder="Enter persona name" required
+                value="{{ persona.name if persona else '' }}"
+            >
+        </div>
+
+        <div class="mb-3">
+            <label for="resume" class="form-label">Resume</label>
+            <textarea 
+                class="form-control" id="resume" name="resume" rows="10" 
+                placeholder="Paste resume text here..." required
+            >{{ persona.resume if persona else '' }}</textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="skills" class="form-label">Skills (comma-separated)</label>
+            <textarea 
+                class="form-control" id="skills" name="skills" rows="5" 
+                placeholder="e.g. workplace diversity, employee well-being, human resources management, critical thinking" required
+            >{{ persona.skills if persona else '' }}</textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="match_keywords" class="form-label">Match Keywords (comma-separated)</label>
+            <textarea 
+                class="form-control" id="match_keywords" name="match_keywords" rows="5" 
+                placeholder="e.g. Python, Data Science, Flask" required
+            >{{ persona.match_keywords if persona else '' }}</textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="exclude_keywords" class="form-label">Exclude Keywords (comma-separated)</label>
+            <textarea 
+                class="form-control" id="exclude_keywords" name="exclude_keywords" rows="5" 
+                placeholder="e.g. Manager, President, Vice-President, Director" required
+            >{{ persona.exclude_keywords if persona else '' }}</textarea>
+        </div>
+
+        <button type="submit" class="btn btn-success">
+            <iconify-icon icon="material-symbols:add"></iconify-icon> 
+            {{ 'Update' if persona else 'Create' }}
+        </button>
+    </form>
+</div>
+<br>
+{% endblock %}
