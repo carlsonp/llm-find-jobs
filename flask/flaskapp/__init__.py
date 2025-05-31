@@ -402,6 +402,12 @@ def create_app():
         except Exception as e:
             app.logger.error(e)
             return "Failure in generate search terms"
+        
+    @app.route("/tasks")
+    def tasks():
+        return render_template(
+            "tasks.html", tasks=q.jobs
+        )
 
     @app.route("/search", methods=["POST"])
     def search():
@@ -423,7 +429,7 @@ def create_app():
                 "_source": ["id", "url", "status"],
                 "query": {
                     "bool": {
-                        "must": {"match": {"content": request.form["search"].lower()}},
+                        "must": {"match": {"content": request.form["search"]}},
                         "filter": {
                             "terms": {
                                 "status.keyword": request.form.getlist("statuses")
@@ -442,7 +448,7 @@ def create_app():
             model = SentenceTransformer("all-MiniLM-L12-v2")
 
             # Generate the query embedding
-            query_vector = model.encode(request.form["search"].lower()).tolist()
+            query_vector = model.encode(request.form["search"]).tolist()
 
             # Define the search query in OpenSearch to use the KNN (nearest neighbor) search
             search_query = {
@@ -479,7 +485,7 @@ def create_app():
                 "results.html",
                 searx_host=os.environ["SEARX_HOST"],
                 selected_statuses=request.form.getlist("statuses"),
-                search_term=request.form["search"].lower(),
+                search_term=request.form["search"],
                 lexical_results=lexical_results,
                 semantic_results=semantic_results,
             )

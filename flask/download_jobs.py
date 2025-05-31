@@ -8,12 +8,6 @@ import joblib
 from opensearchpy.exceptions import NotFoundError
 
 
-def remove_punctuation(text):
-    # keep spaces
-    punctuation = string.punctuation.replace(" ", "")
-    return text.translate(str.maketrans(punctuation, " " * len(punctuation)))
-
-
 def download_jobs():
     try:
         # load our job classification model
@@ -62,7 +56,7 @@ def download_jobs():
                     soup = BeautifulSoup(driver.page_source, "html.parser")
 
                     # Extract the text, removing JavaScript and markup
-                    scrape_results = soup.get_text(separator=" ", strip=True).lower()
+                    scrape_results = soup.get_text(separator=" ", strip=True)
 
                     # encode and decode to remove bad bytes
                     scrape_results = scrape_results.encode(
@@ -74,9 +68,6 @@ def download_jobs():
 
                     # Close the browser session cleanly to free up system resources
                     driver.quit()
-
-                    # remove punctuation
-                    scrape_results = remove_punctuation(scrape_results)
 
                     X_test = vectorizer_loaded.transform([scrape_results])
                     pred = clf_loaded.predict(X_test)
