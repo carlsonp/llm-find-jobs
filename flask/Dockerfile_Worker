@@ -24,7 +24,8 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install rq op
 ENV PYTHONPATH=.
 
 COPY init-embedding.py /
-RUN --mount=type=cache,target=/root/.cache/huggingface/hub/,sharing=locked python3 /init-embedding.py
+RUN HF_HOME=/root/.cache/huggingface \
+    python3 /init-embedding.py
 
 COPY *.py /
 

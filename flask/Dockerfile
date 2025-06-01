@@ -26,7 +26,8 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=15s \
 
 COPY init-embedding.py /
 
-RUN --mount=type=cache,target=/root/.cache/huggingface/hub/,sharing=locked python3 /init-embedding.py
+RUN HF_HOME=/root/.cache/huggingface \
+    python3 /init-embedding.py
 
 COPY startup-dev.sh /
 RUN dos2unix /startup-dev.sh && chmod +x /startup-dev.sh
