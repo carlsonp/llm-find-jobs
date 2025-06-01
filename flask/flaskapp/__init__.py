@@ -465,21 +465,6 @@ def create_app():
 
             # Define the search query in OpenSearch to use the KNN (nearest neighbor) search
             # https://docs.opensearch.org/docs/latest/vector-search/filter-search-knn/efficient-knn-filtering/
-            # search_query = {
-            #     "_source": ["id", "url", "status"],
-            #     "knn": {
-            #         "field": "content_vector",
-            #         "query_vector": query_vector,
-            #         "k": 10,
-            #         "num_candidates": 100
-            #     },
-            #     "filter": {
-            #         "terms": {
-            #             "status.keyword": request.form.getlist("statuses")
-            #         }
-            #     }
-            # }
-
             search_query = {
                 "_source": ["id", "url", "status"],
                 "query": {
@@ -531,7 +516,27 @@ def create_app():
 
             document = client.get(index="jobs_index", id=document_id)
 
-            return render_template("details.html", document=document)
+            search_query = {
+                "_source": ["id", "url", "status"],
+                "size": 6,
+                "query": {
+                    "knn": {
+                        "content_vector": {
+                            "vector": document['_source']['content_vector'],
+                            "k": 6
+                        }
+                    }
+                }
+            }
+            similar_jobs = []
+            # Execute the search for the top 5 similar jobs
+            if client.indices.exists(index="jobs_index"):
+                response = client.search(index="jobs_index", body=search_query)
+            if response:
+                similar_jobs = response["hits"]["hits"]
+                similar_jobs = similar_jobs[1:] # remove the first item as it's the exact match in the search
+
+            return render_template("details.html", document=document, similar_jobs=similar_jobs)
         except Exception as e:
             app.logger.error(e)
             return "Failure in showing document details"
