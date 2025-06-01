@@ -14,26 +14,10 @@ leverages CrewAI and LLMs for searching and finding relevant positions.
 
 Setup Searx:
 
-Make sure to [add this setting](https://github.com/langchain-ai/langchain/issues/855#issuecomment-1452900595)
-to the searx settings config
-
-```file
- search:
-   formats:
-     - html
-     - json
-```
-
-Also turn off [bot protection](https://docs.searxng.org/admin/searx.limiter.html).  Make sure
-Searx is NOT accessible to the wider internet.
-
-```file
-server:
-  ...
-  limiter: false  # rate limit the number of request on the instance, block some bots
-```
+Edit `./searxng/settings.yml` and enter your own value for the `secret_key`.
 
 Adjust Searx as needed for whatever search engines you prefer.
+Make sure Searx is NOT accessible to the wider internet.
 
 * Download the following datasets and put the extracted files in `./data/`.
 
@@ -81,6 +65,24 @@ types of jobs.
 
 The OpenSearch Dashboard can be accessed on [http://localhost:5601](http://localhost:5601)
 which is helpful in debugging the database.
+
+Make sure to [add this setting](https://github.com/langchain-ai/langchain/issues/855#issuecomment-1452900595)
+to the searx settings config
+
+```file
+ search:
+   formats:
+     - html
+     - json
+```
+
+Also turn off [bot protection](https://docs.searxng.org/admin/searx.limiter.html).
+
+```file
+server:
+  ...
+  limiter: false  # rate limit the number of request on the instance, block some bots
+```
 
 ## References
 
