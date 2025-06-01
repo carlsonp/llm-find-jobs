@@ -49,6 +49,14 @@
             >{{ persona.exclude_keywords if persona else '' }}</textarea>
         </div>
 
+        <div class="mb-3">
+            <label for="desired_location" class="form-label">Desired Location (comma-separated)</label>
+            <textarea 
+                class="form-control" id="desired_location" name="desired_location" rows="5" 
+                placeholder="e.g. Remote, Virtual, Minnesota, Twin Cities, Minneapolis" required
+            >{{ persona.desired_location if persona else '' }}</textarea>
+        </div>
+
         <button type="submit" class="btn btn-success">
             <iconify-icon icon="material-symbols:add"></iconify-icon> 
             {{ 'Update' if persona else 'Create' }}

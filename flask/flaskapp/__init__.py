@@ -16,7 +16,7 @@ from sentence_transformers import SentenceTransformer
 from langchain_community.tools import DuckDuckGoSearchResults, DuckDuckGoSearchRun
 from langchain_community.utilities import SearxSearchWrapper
 
-from download_jobs import download_jobs
+from worker_jobs import download_jobs, evaluate_location
 
 from uuid import uuid4
 
@@ -51,6 +51,7 @@ def create_app():
                     index="personas_index",
                     # Query to match all documents
                     body={"query": {"match_all": {}}},
+                    size=100
                 )
             if response:
                 personas = response["hits"]["hits"]
@@ -138,6 +139,10 @@ def create_app():
                             "type": "text",
                             "fields": {"keyword": {"type": "keyword"}},
                         },
+                        "desired_location": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword"}},
+                        },
                         "date_created": {"type": "date"},
                     }
                 },
@@ -152,6 +157,7 @@ def create_app():
                 "skills": request.form["skills"],
                 "match_keywords": request.form["match_keywords"],
                 "exclude_keywords": request.form["exclude_keywords"],
+                "desired_location": request.form["desired_location"],
                 "date_created": datetime.now().isoformat(),
             }
 
@@ -326,6 +332,8 @@ def create_app():
 
             # enqueue a job to redis queue to download the jobs we just added
             q.enqueue(download_jobs)
+            # enqueue a job to evaluate the job location relative to our desired locations available in the personas
+            q.enqueue(evaluate_location)
 
             return render_template(
                 "post_job_search.html", query=request.form["search-query"]
@@ -381,6 +389,9 @@ def create_app():
                             about finding jobs in this area but want to develop specific search queries that focus soley
                             on results that will yield open job positions.  Use only the English language in the queries.  Come up with appropriate
                             search queries for search engines and job search boards that best fit the skills and resume.
+                            The desired location(s) for the position are: """
+                    + person["_source"]["desired_location"] +
+                            """
                             Do not come up with search queries using the following terms: """
                     + person["_source"]["exclude_keywords"]
                     + """.  Provide
@@ -536,7 +547,28 @@ def create_app():
                 similar_jobs = response["hits"]["hits"]
                 similar_jobs = similar_jobs[1:] # remove the first item as it's the exact match in the search
 
-            return render_template("details.html", document=document, similar_jobs=similar_jobs)
+            # find any LLM evaluations
+            query = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "term": {
+                                    "job_id.keyword": {
+                                        "value": document_id
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+            response = client.search(index="llm_evaluations_index", body=query)
+            llm_evaluations = None
+            if response:
+                llm_evaluations = response["hits"]["hits"][0]
+
+            return render_template("details.html", document=document, similar_jobs=similar_jobs, llm_evaluations=llm_evaluations)
         except Exception as e:
             app.logger.error(e)
             return "Failure in showing document details"
@@ -650,5 +682,49 @@ def create_app():
         except Exception as e:
             app.logger.error(e)
             return "Failure in deleting persona"
+        
+    @app.route("/location_aligned_jobs")
+    def location_aligned_jobs():
+        try:
+            # Connect to OpenSearch
+            client = OpenSearch(
+                hosts=[{"host": "opensearch-node1", "port": "9200"}],
+                use_ssl=False,
+                verify_certs=False,
+            )
+
+            query = {
+                "size": 50,
+                "_source": ["llm_location_evaluation", "job_id"],
+                "sort": [
+                    {"llm_location_evaluation": "desc"},
+                    {"_id": "desc"},  # tiebreaker for stable sort
+                ],
+            }
+
+            if client.indices.exists(index="llm_evaluations_index"):
+                response = client.search(index="llm_evaluations_index", body=query)
+                jobs = response["hits"]["hits"]
+            else:
+                jobs = []
+
+            final_results = []
+            for match in jobs:
+                job_data = client.get(index="jobs_index", id=match["_source"]["job_id"], _source_includes=['_id', 'status', 'url'])
+                if job_data:
+                    final_results.append({
+                        "status": job_data["_source"]["status"],
+                        "location_score": match["_source"]["llm_location_evaluation"],
+                        "url": job_data["_source"]["url"],
+                        "id": match["_source"]["job_id"]
+                    })
+
+            return render_template(
+                "location_aligned_jobs.html", jobs=final_results
+            )
+
+        except Exception as e:
+            app.logger.error(e)
+            return "Failure in listing location aligned jobs"
 
     return app

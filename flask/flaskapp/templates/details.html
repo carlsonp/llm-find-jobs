@@ -59,6 +59,13 @@
     {% endif %}
     <br><br>
 
+    {% if llm_evaluations is defined %}
+        <h2 class="text-center">LLM Evaluations</h2>
+        <br>
+        <p>Location Alignment Score (1-100): <b>{{ llm_evaluations['_source']['llm_location_evaluation'] }}</b></p>
+        <br><br>
+    {% endif %}
+
     {% if similar_jobs is defined %}
         <h2 class="text-center">Top 5 Similar Jobs</h2>
         <br>

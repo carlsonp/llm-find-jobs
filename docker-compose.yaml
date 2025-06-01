@@ -74,6 +74,8 @@ services:
     restart: unless-stopped
     environment:
       TZ: America/Chicago
+      LLM_API: ${LLM_API}
+      LLM_MODEL: ${LLM_MODEL}
     depends_on:
       - valkey
     volumes:
