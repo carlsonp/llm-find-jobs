@@ -8,7 +8,8 @@
     {% if document is defined %}
         <a href="{{ document['_source']['url'] }}" target="_blank">{{ document['_source']['url'] }}</a>
         <br>
-        <p>Status: {{ document['_source']['status'] }}</p>
+        <p>Status: <b>{{ document['_source']['status'] }}</b></p>
+        <p>Date Downloaded: <b>{{ document['_source']['date_downloaded'] }}</b></p>
 
         <button class="btn btn-primary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#contentCollapse" aria-expanded="false" aria-controls="contentCollapse">
             Show/Hide Website Contents

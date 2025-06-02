@@ -53,7 +53,7 @@
     <br><br>
     <h2>Document Counts</h2>
     {% for document in buckets %}
-        <p>{{ document['key'] }} - {{ document['doc_count'] }}</p>
+        <p>{{ document['key'] }} - <b>{{ document['doc_count'] }}</b></p>
     {% endfor %}
 </div>
 {% endblock %}

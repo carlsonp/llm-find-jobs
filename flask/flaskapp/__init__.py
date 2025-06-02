@@ -540,6 +540,11 @@ def create_app():
 
             document = client.get(index="jobs_index", id=document_id)
 
+            downloaded_at = parser.isoparse(document["_source"]["date_downloaded"])
+            document["_source"]["date_downloaded"] = humanize.naturaltime(
+                datetime.now(downloaded_at.tzinfo) - downloaded_at
+            )
+
             search_query = {
                 "_source": ["id", "url", "status"],
                 "size": 6,
