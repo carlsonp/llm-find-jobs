@@ -6,7 +6,10 @@
     <h2>Run Job Search</h2>
     <form action="{{ url_for('post_job_search') }}" method="POST" class="text-start mt-4">
         <div class="mb-3">
-            <p>Make sure to add the word "job", specify a location, or whatever you normally would do in a search.</p>
+            <p><iconify-icon icon="material-symbols:info" style="font-size: 30px;"></iconify-icon>
+                Make sure to add the word "job", specify a location, and whatever you normally would do in a search.
+                These results will be added to the database.
+            </p>
             <label for="name" class="form-label">Search Query</label>
             <input type="text" class="form-control" id="search-query" name="search-query" placeholder="Enter search query" required>
         </div>
