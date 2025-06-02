@@ -84,8 +84,13 @@ def create_app():
                 buckets = response["aggregations"]["status_counts"]["buckets"]
             response = None
 
+            if request.args.get("textmessage"):
+                textmessage = request.args.get("textmessage")
+            else:
+                textmessage = None
+
             return render_template(
-                "index.html", personas=personas, favorites=favorites, buckets=buckets
+                "index.html", personas=personas, favorites=favorites, buckets=buckets, textmessage=textmessage
             )
         except Exception as e:
             app.logger.error(e)
@@ -563,12 +568,13 @@ def create_app():
                     }
                 }
             }
-            response = client.search(index="llm_evaluations_index", body=query)
-            llm_evaluations = None
+            if client.indices.exists(index="job_evaluations_index"):
+                response = client.search(index="job_evaluations_index", body=query)
+            job_evaluations = None
             if response:
-                llm_evaluations = response["hits"]["hits"][0]
+                job_evaluations = response["hits"]["hits"][0]
 
-            return render_template("details.html", document=document, similar_jobs=similar_jobs, llm_evaluations=llm_evaluations)
+            return render_template("details.html", document=document, similar_jobs=similar_jobs, job_evaluations=job_evaluations)
         except Exception as e:
             app.logger.error(e)
             return "Failure in showing document details"
@@ -702,8 +708,8 @@ def create_app():
                 ],
             }
 
-            if client.indices.exists(index="llm_evaluations_index"):
-                response = client.search(index="llm_evaluations_index", body=query)
+            if client.indices.exists(index="job_evaluations_index"):
+                response = client.search(index="job_evaluations_index", body=query)
                 jobs = response["hits"]["hits"]
             else:
                 jobs = []
@@ -726,5 +732,20 @@ def create_app():
         except Exception as e:
             app.logger.error(e)
             return "Failure in listing location aligned jobs"
+        
+
+    @app.route("/manual_worker_enqueue")
+    def manual_worker_enqueue():
+        try:
+            # enqueue a job to redis queue to download the jobs we just added
+            q.enqueue(download_jobs)
+            # enqueue a job to evaluate the job location relative to our desired locations available in the personas
+            q.enqueue(evaluate_location)
+
+            return redirect(url_for("homepage", textmessage="Tasks queued successfully"))
+
+        except Exception as e:
+            app.logger.error(e)
+            return "Failure to queue up backend tasks"
 
     return app

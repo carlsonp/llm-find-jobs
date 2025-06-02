@@ -59,10 +59,10 @@
     {% endif %}
     <br><br>
 
-    {% if llm_evaluations is defined %}
-        <h2 class="text-center">LLM Evaluations</h2>
+    {% if job_evaluations is defined %}
+        <h2 class="text-center">Job Evaluations</h2>
         <br>
-        <p>Location Alignment Score (1-100): <b>{{ llm_evaluations['_source']['llm_location_evaluation'] }}</b></p>
+        <p>LLM Location Alignment Score (1-100): <b>{{ job_evaluations['_source']['llm_location_evaluation'] }}</b></p>
         <br><br>
     {% endif %}
 

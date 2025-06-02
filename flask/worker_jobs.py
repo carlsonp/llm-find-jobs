@@ -133,7 +133,7 @@ def evaluate_location():
 
         llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
 
-        index_name = "llm_evaluations_index"
+        index_name = "job_evaluations_index"
         index_body = {
             "settings": {
                 "analysis": {
@@ -260,6 +260,11 @@ def evaluate_location():
                             # print(f"Tasks output: {result.tasks_output}")
                             # print(f"Token usage: {result.token_usage}")
                             # print(f"SCORE: {result["locationalignment"]}")
+
+                            keyword_location_match_number = 0
+                            for check in persona['_source']['desired_location'].split(','):
+                                keyword_location_match_number += job['_source']['content'].lower().count(check.strip().lower())
+                            # TODO Finish
 
                             response = client.create(
                                 index=index_name,
