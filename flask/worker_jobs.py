@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import joblib
 from opensearchpy.exceptions import NotFoundError
 from pydantic import BaseModel, Field
-from typing import List, Annotated
+from typing import Annotated
 from crewai import Agent, Task, Crew, Process, LLM
 
 
@@ -96,9 +96,7 @@ def download_jobs():
                         },
                     )
                 except Exception as e:
-                    print(
-                        f"Error updating URL {doc['_source']['url']}: {e}"
-                    )
+                    print(f"Error updating URL {doc['_source']['url']}: {e}")
                     # update the document so we don't try and fail again
                     response = client.update(
                         index="jobs_index",
@@ -144,7 +142,7 @@ def evaluate_location():
                             "tokenizer": "standard",
                             "filter": ["lowercase"],
                         }
-                    }
+                    },
                 }
             },
             "mappings": {
@@ -157,7 +155,8 @@ def evaluate_location():
                         "type": "text",
                         "fields": {"keyword": {"type": "keyword"}},
                     },
-                    "llm_location_evaluation": {"type": "integer"}
+                    "llm_location_evaluation": {"type": "integer"},
+                    "keyword_location_evaluation": {"type": "integer"},
                 }
             },
         }
@@ -170,7 +169,7 @@ def evaluate_location():
             index="personas_index",
             # Query to match all documents
             body={"query": {"match_all": {}}},
-            size=1000
+            size=1000,
         )
         personas = []
         if response:
@@ -180,7 +179,7 @@ def evaluate_location():
             index="jobs_index",
             # Query to match all documents
             body={"query": {"match_all": {}}},
-            size=1000
+            size=1000,
         )
         jobs = []
         if response:
@@ -195,24 +194,16 @@ def evaluate_location():
                             "must": [
                                 {
                                     "term": {
-                                        "persona_id.keyword": {
-                                            "value": persona['_id']
-                                        }
+                                        "persona_id.keyword": {"value": persona["_id"]}
                                     }
                                 },
-                                {
-                                    "term": {
-                                        "job_id.keyword": {
-                                            "value": job['_id']
-                                        }
-                                    }
-                                }
+                                {"term": {"job_id.keyword": {"value": job["_id"]}}},
                             ]
                         }
-                    }
+                    },
                 }
                 response = client.search(index=index_name, body=query)
-                if response and response['hits']['total']['value'] == 0:
+                if response and response["hits"]["total"]["value"] == 0:
 
                     jobagent = Agent(
                         role="Evaluation",
@@ -225,11 +216,16 @@ def evaluate_location():
                     )
 
                     try:
+
                         class LocationEvaluation(BaseModel):
-                            locationalignment: Annotated[int, Field(
-                                ge=1, le=100,
-                                description="An integer between 1 and 100 representing the match between the job and the desired location(s)."
-                            )]
+                            locationalignment: Annotated[
+                                int,
+                                Field(
+                                    ge=1,
+                                    le=100,
+                                    description="An integer between 1 and 100 representing the match between the job and the desired location(s).",
+                                ),
+                            ]
 
                         task1 = Task(
                             description="""Read the following job description.  You're tasked with coming
@@ -261,23 +257,32 @@ def evaluate_location():
                             # print(f"Token usage: {result.token_usage}")
                             # print(f"SCORE: {result["locationalignment"]}")
 
+                            # count the number of times our location keyword is found
                             keyword_location_match_number = 0
-                            for check in persona['_source']['desired_location'].split(','):
-                                keyword_location_match_number += job['_source']['content'].lower().count(check.strip().lower())
-                            # TODO Finish
+                            for check in persona["_source"]["desired_location"].split(
+                                ","
+                            ):
+                                keyword_location_match_number += (
+                                    job["_source"]["content"]
+                                    .lower()
+                                    .count(check.strip().lower())
+                                )
 
                             response = client.create(
                                 index=index_name,
                                 id=f"{persona['_id']}_{job['_id']}",
                                 body={
-                                    "persona_id": persona['_id'],
-                                    "job_id": job['_id'],
-                                    "llm_location_evaluation": int(result["locationalignment"])
-                            }
-                    )
+                                    "persona_id": persona["_id"],
+                                    "job_id": job["_id"],
+                                    "llm_location_evaluation": int(
+                                        result["locationalignment"]
+                                    ),
+                                    "keyword_location_evaluation": keyword_location_match_number,
+                                },
+                            )
                     except Exception as e:
                         print(f"Error: {e}")
-                        continue # on in the for loop through jobs
+                        continue  # on in the for loop through jobs
 
     except Exception as e:
         print(f"Error: {e}")

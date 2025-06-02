@@ -62,7 +62,10 @@
     {% if job_evaluations is defined %}
         <h2 class="text-center">Job Evaluations</h2>
         <br>
-        <p>LLM Location Alignment Score (1-100): <b>{{ job_evaluations['_source']['llm_location_evaluation'] }}</b></p>
+        {% for job in job_evaluations %}
+            <p>LLM Location Alignment Score (1-100): <b>{{ job['_source']['llm_location_evaluation'] }}</b></p>
+            <p>Location Keywords Found: <b>{{ job['_source']['keyword_location_evaluation'] }}</b></p>
+        {% endfor %}
         <br><br>
     {% endif %}
 

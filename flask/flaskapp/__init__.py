@@ -1,4 +1,3 @@
-import threading
 import os
 import re
 import hashlib
@@ -28,7 +27,7 @@ from typing import List
 
 from flask import Flask, redirect, render_template, request, url_for
 
-q = Queue(connection=Redis(host='valkey', port=6379))
+q = Queue(connection=Redis(host="valkey", port=6379))
 
 
 def create_app():
@@ -51,7 +50,7 @@ def create_app():
                     index="personas_index",
                     # Query to match all documents
                     body={"query": {"match_all": {}}},
-                    size=100
+                    size=100,
                 )
             if response:
                 personas = response["hits"]["hits"]
@@ -90,7 +89,11 @@ def create_app():
                 textmessage = None
 
             return render_template(
-                "index.html", personas=personas, favorites=favorites, buckets=buckets, textmessage=textmessage
+                "index.html",
+                personas=personas,
+                favorites=favorites,
+                buckets=buckets,
+                textmessage=textmessage,
             )
         except Exception as e:
             app.logger.error(e)
@@ -174,7 +177,12 @@ def create_app():
                 new_id = str(uuid4())
                 client.index(index=index_name, id=new_id, body=doc, refresh=True)
 
-            return redirect(url_for("homepage"))
+            # since we have a new or updated persona, check the location again
+            q.enqueue(evaluate_location)
+
+            return redirect(
+                url_for("homepage", textmessage="Persona created or updated")
+            )
 
         else:
             persona_data = {}
@@ -182,7 +190,9 @@ def create_app():
                 res = client.get(index=index_name, id=persona_id)
                 persona_data = res["_source"]
 
-            return render_template("persona.html", persona=persona_data, persona_id=persona_id)
+            return render_template(
+                "persona.html", persona=persona_data, persona_id=persona_id
+            )
 
     @app.route("/run_job_search")
     def run_job_search():
@@ -395,8 +405,8 @@ def create_app():
                             on results that will yield open job positions.  Use only the English language in the queries.  Come up with appropriate
                             search queries for search engines and job search boards that best fit the skills and resume.
                             The desired location(s) for the position are: """
-                    + person["_source"]["desired_location"] +
-                            """
+                    + person["_source"]["desired_location"]
+                    + """
                             Do not come up with search queries using the following terms: """
                     + person["_source"]["exclude_keywords"]
                     + """.  Provide
@@ -430,12 +440,10 @@ def create_app():
         except Exception as e:
             app.logger.error(e)
             return "Failure in generate search terms"
-        
+
     @app.route("/tasks")
     def tasks():
-        return render_template(
-            "tasks.html", tasks=q.jobs
-        )
+        return render_template("tasks.html", tasks=q.jobs)
 
     @app.route("/search", methods=["POST"])
     def search():
@@ -490,12 +498,12 @@ def create_app():
                             "k": 10,
                             "filter": {
                                 "terms": {
-                                "status.keyword": request.form.getlist("statuses")
+                                    "status.keyword": request.form.getlist("statuses")
                                 }
-                            }
+                            },
                         }
                     }
-                }
+                },
             }
 
             # Execute the search
@@ -509,7 +517,7 @@ def create_app():
 
             return render_template(
                 "results.html",
-                searx_host="http://"+request.host.split(':')[0]+":9980",
+                searx_host="http://" + request.host.split(":")[0] + ":9980",
                 selected_statuses=request.form.getlist("statuses"),
                 search_term=request.form["search"],
                 lexical_results=lexical_results,
@@ -538,11 +546,11 @@ def create_app():
                 "query": {
                     "knn": {
                         "content_vector": {
-                            "vector": document['_source']['content_vector'],
-                            "k": 6
+                            "vector": document["_source"]["content_vector"],
+                            "k": 6,
                         }
                     }
-                }
+                },
             }
             similar_jobs = []
             # Execute the search for the top 5 similar jobs
@@ -550,21 +558,15 @@ def create_app():
                 response = client.search(index="jobs_index", body=search_query)
             if response:
                 similar_jobs = response["hits"]["hits"]
-                similar_jobs = similar_jobs[1:] # remove the first item as it's the exact match in the search
+                similar_jobs = similar_jobs[
+                    1:
+                ]  # remove the first item as it's the exact match in the search
 
             # find any LLM evaluations
             query = {
                 "query": {
                     "bool": {
-                        "must": [
-                            {
-                                "term": {
-                                    "job_id.keyword": {
-                                        "value": document_id
-                                    }
-                                }
-                            }
-                        ]
+                        "must": [{"term": {"job_id.keyword": {"value": document_id}}}]
                     }
                 }
             }
@@ -572,9 +574,14 @@ def create_app():
                 response = client.search(index="job_evaluations_index", body=query)
             job_evaluations = None
             if response:
-                job_evaluations = response["hits"]["hits"][0]
+                job_evaluations = response["hits"]["hits"]
 
-            return render_template("details.html", document=document, similar_jobs=similar_jobs, job_evaluations=job_evaluations)
+            return render_template(
+                "details.html",
+                document=document,
+                similar_jobs=similar_jobs,
+                job_evaluations=job_evaluations,
+            )
         except Exception as e:
             app.logger.error(e)
             return "Failure in showing document details"
@@ -688,7 +695,7 @@ def create_app():
         except Exception as e:
             app.logger.error(e)
             return "Failure in deleting persona"
-        
+
     @app.route("/location_aligned_jobs")
     def location_aligned_jobs():
         try:
@@ -716,23 +723,28 @@ def create_app():
 
             final_results = []
             for match in jobs:
-                job_data = client.get(index="jobs_index", id=match["_source"]["job_id"], _source_includes=['_id', 'status', 'url'])
+                job_data = client.get(
+                    index="jobs_index",
+                    id=match["_source"]["job_id"],
+                    _source_includes=["_id", "status", "url"],
+                )
                 if job_data:
-                    final_results.append({
-                        "status": job_data["_source"]["status"],
-                        "location_score": match["_source"]["llm_location_evaluation"],
-                        "url": job_data["_source"]["url"],
-                        "id": match["_source"]["job_id"]
-                    })
+                    final_results.append(
+                        {
+                            "status": job_data["_source"]["status"],
+                            "location_score": match["_source"][
+                                "llm_location_evaluation"
+                            ],
+                            "url": job_data["_source"]["url"],
+                            "id": match["_source"]["job_id"],
+                        }
+                    )
 
-            return render_template(
-                "location_aligned_jobs.html", jobs=final_results
-            )
+            return render_template("location_aligned_jobs.html", jobs=final_results)
 
         except Exception as e:
             app.logger.error(e)
             return "Failure in listing location aligned jobs"
-        
 
     @app.route("/manual_worker_enqueue")
     def manual_worker_enqueue():
@@ -742,7 +754,9 @@ def create_app():
             # enqueue a job to evaluate the job location relative to our desired locations available in the personas
             q.enqueue(evaluate_location)
 
-            return redirect(url_for("homepage", textmessage="Tasks queued successfully"))
+            return redirect(
+                url_for("homepage", textmessage="Tasks queued successfully")
+            )
 
         except Exception as e:
             app.logger.error(e)
