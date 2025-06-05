@@ -12,18 +12,31 @@
             <h2>Personas</h2>
             <iconify-icon icon="material-symbols:groups" style="font-size: 30px;"></iconify-icon>
             <br>
-            <hr>
             {% if personas is defined %}
-                {% for person in personas %}
-                    {{ person['_source']['name'] }}
-                    <iconify-icon icon="material-symbols:person" style="font-size: 30px;"></iconify-icon>
-                    <a class="btn btn-primary" href="/generate_search_terms/{{ person['_id'] }}"><iconify-icon icon="material-symbols:person"></iconify-icon> Generate Job Search Terms</a>
-                    <a class="btn btn-primary" href="/persona/{{ person['_id'] }}"><iconify-icon icon="material-symbols:edit"></iconify-icon> Edit Persona</a>
-                    <a class="btn btn-primary" href="/delete_persona/{{ person['_id'] }}"><iconify-icon icon="material-symbols:delete"></iconify-icon> Delete Persona</a>
-                {% endfor %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Name</th>
+                                <th scope="col">Job Search</th>
+                                <th scope="col">Edit</th>
+                                <th scope="col">Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for person in personas %}
+                            <tr>
+                                <td>{{ person['_source']['name'] }}</td>
+                                <td><a class="btn btn-primary" href="/generate_search_terms/{{ person['_id'] }}"><iconify-icon icon="material-symbols:person"></iconify-icon> Generate Job Search Terms</a></td>
+                                <td><a class="btn btn-primary" href="/persona/{{ person['_id'] }}"><iconify-icon icon="material-symbols:edit"></iconify-icon> Edit Persona</a></td>
+                                <td><a class="btn btn-primary" href="/delete_persona/{{ person['_id'] }}"><iconify-icon icon="material-symbols:delete"></iconify-icon> Delete Persona</a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             {% endif %}
             <br>
-            <hr>
             <a href="{{ url_for('persona_form') }}" class="btn btn-primary">
                 <iconify-icon icon="material-symbols:add"></iconify-icon> Create Persona
             </a>
