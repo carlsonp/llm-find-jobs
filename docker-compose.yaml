@@ -48,12 +48,6 @@ services:
       TZ: America/Chicago
       LLM_API: ${LLM_API}
       LLM_MODEL: ${LLM_MODEL}
-      CREW_VERBOSE_OUTPUT: ${CREW_VERBOSE_OUTPUT}
-      SKILLS: ${SKILLS}
-      RESUME: ${RESUME}
-      DO_NOT_MATCH: ${DO_NOT_MATCH}
-      KEYWORD_SEARCH: ${KEYWORD_SEARCH}
-      LOCATION_KEYWORD_SEARCH: ${LOCATION_KEYWORD_SEARCH}
       OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
     volumes:
       - ./models/:/models:ro
@@ -80,7 +74,7 @@ services:
       - valkey
     volumes:
       - ./models/:/models:ro
-  
+
 
   opensearch-node1: # This is also the hostname of the container within the Docker network (i.e. https://opensearch-node1/)
     image: opensearchproject/opensearch:latest # Specifying the latest available image - modify if you want a specific version
