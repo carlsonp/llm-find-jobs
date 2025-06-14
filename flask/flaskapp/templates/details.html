@@ -63,12 +63,29 @@
     {% if job_evaluations is defined %}
         <h2 class="text-center">Job Evaluations</h2>
         <br>
+        <ul>
         {% for job in job_evaluations %}
-            <p>LLM Location Alignment Score (1-100): <b>{{ job['_source']['llm_location_evaluation'] }}</b></p>
-            <p>Location Keywords Found: <b>{{ job['_source']['keyword_location_evaluation'] }}</b></p>
+            <li><b>{{ job['_source']['evaluation_name'] }}</b>
+                <ul>
+                    <li>
+                        LLM Alignment Score:
+                        <div class="progress" style="height: 20px; max-width: 400px;">
+                            <div class="progress-bar" role="progressbar"
+                                style="width: {{ job['_source']['evaluation_value'] }}%;"
+                                aria-valuenow="{{ job['_source']['evaluation_value'] }}"
+                                aria-valuemin="0" aria-valuemax="100">
+                                {{ job['_source']['evaluation_value'] }}%
+                            </div>
+                        </div>
+                    </li>
+                    <li>Keywords Found: <b>{{ job['_source']['keyword_match'] }}</b></li>
+                </ul>
+            </li>
         {% endfor %}
+        </ul>
         <br><br>
     {% endif %}
+
 
     {% if similar_jobs is defined %}
         <h2 class="text-center">Top 5 Similar Jobs</h2>

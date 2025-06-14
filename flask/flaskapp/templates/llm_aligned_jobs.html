@@ -2,9 +2,9 @@
 
 {% block content %}
 <div class="container mt-5">
-    <h2 class="text-center">List Location Aligned Jobs</h2>
+    <h2 class="text-center">List Top LLM Aligned Jobs</h2>
     <p><iconify-icon icon="material-symbols:info" style="font-size: 30px;"></iconify-icon>
-        These are jobs the generative AI large-language model feels align with your persona location(s).
+        These are jobs the generative AI large-language model feels align the most.
         These may be inaccurate.
     </p>
     <br>
@@ -14,7 +14,7 @@
         <table class="table table-striped table-bordered">
             <thead class="table-light">
                 <tr>
-                    <th scope="col">Location Score</th>
+                    <th scope="col">LLM Total Score</th>
                     <th scope="col">Status</th>
                     <th scope="col">URL</th>
                     <th scope="col">Details</th>
@@ -23,7 +23,7 @@
             <tbody>
                 {% for job in jobs %}
                 <tr>
-                    <td>{{ job['location_score'] }}</td>
+                    <td>{{ job['evaluation_value'] }}</td>
                     <td>{{ job['status'] }}</td>
                     <td><a href="{{ job['url'] }}" target="_blank">{{ job['url'] }}</a></td>
                     <td><a class="btn btn-primary" href="/details/{{ job['id']}}"><iconify-icon icon="material-symbols:topic"></iconify-icon> Details</a></td>

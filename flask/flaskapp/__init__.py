@@ -15,7 +15,7 @@ from sentence_transformers import SentenceTransformer
 from langchain_community.tools import DuckDuckGoSearchResults, DuckDuckGoSearchRun
 from langchain_community.utilities import SearxSearchWrapper
 
-from worker_jobs import download_jobs, evaluate_location, evaluate_skills
+from worker_jobs import download_jobs, evaluate_location, evaluate_skills, evaluate_include_keywords, evaluate_exclude_keywords, evaluate_resume_match
 
 from uuid import uuid4
 
@@ -176,9 +176,6 @@ def create_app():
                 # Create new document
                 new_id = str(uuid4())
                 client.index(index=index_name, id=new_id, body=doc, refresh=True)
-
-            # since we have a new or updated persona, check the location again
-            q.enqueue(evaluate_location)
 
             return redirect(
                 url_for("homepage", textmessage="Persona created or updated")
@@ -345,12 +342,9 @@ def create_app():
             # perform a refresh on our index
             client.indices.refresh(index=index_name)
 
-            # enqueue a job to redis queue to download the jobs we just added
-            q.enqueue(download_jobs)
-            # enqueue a job to evaluate the job location relative to our desired locations available in the personas
-            q.enqueue(evaluate_location)
-            # enqueue a job to evaluate the job description relative to our persona skillset
-            q.enqueue(evaluate_skills)
+            # enqueue a job to redis queue to download the jobs and do other evaluation tasks
+            for job in [download_jobs, evaluate_location, evaluate_skills, evaluate_include_keywords, evaluate_exclude_keywords, evaluate_resume_match]:
+                q.enqueue(job)
 
             return render_template(
                 "post_job_search.html", query=request.form["search-query"]
@@ -709,8 +703,8 @@ def create_app():
             app.logger.error(e)
             return "Failure in deleting persona"
 
-    @app.route("/location_aligned_jobs")
-    def location_aligned_jobs():
+    @app.route("/llm_aligned_jobs")
+    def llm_aligned_jobs():
         try:
             # Connect to OpenSearch
             client = OpenSearch(
@@ -720,17 +714,30 @@ def create_app():
             )
 
             query = {
-                "size": 50,
-                "_source": ["llm_location_evaluation", "job_id"],
-                "sort": [
-                    {"llm_location_evaluation": "desc"},
-                    {"_id": "desc"},  # tiebreaker for stable sort
-                ],
+                "size": 0,
+                "aggs": {
+                    "jobs": {
+                    "terms": {
+                        "field": "job_id.keyword",
+                        "size": 1000,
+                        "order": {
+                        "sum_eval": "desc"
+                        }
+                    },
+                    "aggs": {
+                        "sum_eval": {
+                        "sum": {
+                            "field": "evaluation_value"
+                        }
+                        }
+                    }
+                    }
+                }
             }
 
             if client.indices.exists(index="job_evaluations_index"):
                 response = client.search(index="job_evaluations_index", body=query)
-                jobs = response["hits"]["hits"]
+                jobs = response["aggregations"]["jobs"]["buckets"]
             else:
                 jobs = []
 
@@ -738,36 +745,92 @@ def create_app():
             for match in jobs:
                 job_data = client.get(
                     index="jobs_index",
-                    id=match["_source"]["job_id"],
+                    id=match["key"],
                     _source_includes=["_id", "status", "url"],
                 )
                 if job_data:
                     final_results.append(
                         {
                             "status": job_data["_source"]["status"],
-                            "location_score": match["_source"][
-                                "llm_location_evaluation"
-                            ],
+                            "evaluation_value": int(match["sum_eval"]["value"]),
                             "url": job_data["_source"]["url"],
-                            "id": match["_source"]["job_id"],
+                            "id": match["key"],
                         }
                     )
 
-            return render_template("location_aligned_jobs.html", jobs=final_results)
+            return render_template("llm_aligned_jobs.html", jobs=final_results)
 
         except Exception as e:
             app.logger.error(e)
-            return "Failure in listing location aligned jobs"
+            return "Failure in listing llm aligned jobs"
+        
+    @app.route("/keyword_aligned_jobs")
+    def keyword_aligned_jobs():
+        try:
+            # Connect to OpenSearch
+            client = OpenSearch(
+                hosts=[{"host": "opensearch-node1", "port": "9200"}],
+                use_ssl=False,
+                verify_certs=False,
+            )
+
+            query = {
+                "size": 0,
+                "aggs": {
+                    "jobs": {
+                    "terms": {
+                        "field": "job_id.keyword",
+                        "size": 1000,
+                        "order": {
+                        "sum_eval": "desc"
+                        }
+                    },
+                    "aggs": {
+                        "sum_eval": {
+                        "sum": {
+                            "field": "keyword_match"
+                        }
+                        }
+                    }
+                    }
+                }
+            }
+
+            if client.indices.exists(index="job_evaluations_index"):
+                response = client.search(index="job_evaluations_index", body=query)
+                jobs = response["aggregations"]["jobs"]["buckets"]
+            else:
+                jobs = []
+
+            final_results = []
+            for match in jobs:
+                job_data = client.get(
+                    index="jobs_index",
+                    id=match["key"],
+                    _source_includes=["_id", "status", "url"],
+                )
+                if job_data:
+                    final_results.append(
+                        {
+                            "status": job_data["_source"]["status"],
+                            "keyword_match": int(match["sum_eval"]["value"]),
+                            "url": job_data["_source"]["url"],
+                            "id": match["key"],
+                        }
+                    )
+
+            return render_template("keyword_aligned_jobs.html", jobs=final_results)
+
+        except Exception as e:
+            app.logger.error(e)
+            return "Failure in listing keyword aligned jobs"
 
     @app.route("/manual_worker_enqueue")
     def manual_worker_enqueue():
         try:
-            # enqueue a job to redis queue to download the jobs we just added
-            q.enqueue(download_jobs)
-            # enqueue a job to evaluate the job location relative to our desired locations available in the personas
-            q.enqueue(evaluate_location)
-            # enqueue a job to evaluate the job description relative to our persona skillset
-            q.enqueue(evaluate_skills)
+            # enqueue a job to redis queue to download the jobs and do other evaluation tasks
+            for job in [download_jobs, evaluate_location, evaluate_skills, evaluate_include_keywords, evaluate_exclude_keywords, evaluate_resume_match]:
+                q.enqueue(job)
 
             return redirect(
                 url_for("homepage", textmessage="Tasks queued successfully")

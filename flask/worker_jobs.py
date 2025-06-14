@@ -5,6 +5,7 @@ from opensearchpy import OpenSearch
 from selenium.webdriver import Chrome, ChromeOptions
 from bs4 import BeautifulSoup
 import joblib
+from uuid import uuid4
 from opensearchpy.exceptions import NotFoundError
 from pydantic import BaseModel, Field
 from typing import Annotated
@@ -49,10 +50,12 @@ def download_jobs():
                         "type": "text",
                         "fields": {"keyword": {"type": "keyword"}},
                     },
-                    "llm_location_evaluation": {"type": "integer"},
-                    "keyword_location_evaluation": {"type": "integer"},
-                    "llm_skill_evaluation": {"type": "integer"},
-                    "keyword_skill_evaluation": {"type": "integer"},
+                    "evaluation_name": {
+                        "type": "text",
+                        "fields": {"keyword": {"type": "keyword"}},
+                    },
+                    "evaluation_value": {"type": "integer"},
+                    "keyword_match": {"type": "integer"},
                 }
             },
         }
@@ -157,259 +160,200 @@ def download_jobs():
         print(f"Error: {e}")
 
 
-def evaluate_location():
-    try:
-        client = OpenSearch(
-            hosts=[{"host": "opensearch-node1", "port": "9200"}],
-            use_ssl=False,
-            verify_certs=False,
-        )
+class Evaluation:
+    def __init__(self, evaluation_name, evaluation_description, llm_task, persona_key):
+        self.evaluation_name = evaluation_name
+        self.evaluation_description = evaluation_description
+        self.llm_task = llm_task
+        self.persona_key = persona_key
 
-        llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
+    def runevaluation(self):
+        try:
+            client = OpenSearch(
+                hosts=[{"host": "opensearch-node1", "port": "9200"}],
+                use_ssl=False,
+                verify_certs=False,
+            )
 
-        response = client.search(
-            index="personas_index",
-            # Query to match all documents
-            body={"query": {"match_all": {}}},
-            size=1000,
-        )
-        personas = []
-        if response:
-            personas = response["hits"]["hits"]
+            llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
 
-        response = client.search(
-            index="jobs_index",
-            # Query to match all documents
-            body={"query": {"match_all": {}}},
-            size=1000,
-        )
-        jobs = []
-        if response:
-            jobs = response["hits"]["hits"]
+            response = client.search(
+                index="personas_index",
+                # Query to match all documents
+                body={"query": {"match_all": {}}},
+                size=1000,
+            )
+            personas = []
+            if response:
+                personas = response["hits"]["hits"]
 
-        for persona in personas:
-            for job in jobs:
-                query = {
-                    "size": 0,
-                    "query": {
-                        "bool": {
-                            "must": [
-                                {
-                                    "term": {
-                                        "persona_id.keyword": {"value": persona["_id"]}
-                                    }
-                                },
-                                {"term": {"job_id.keyword": {"value": job["_id"]}}},
-                            ]
-                        }
-                    },
-                }
-                response = client.search(index="job_evaluations_index", body=query)
-                if response and response["hits"]["total"]["value"] == 0:
+            response = client.search(
+                index="jobs_index",
+                # Query to match all documents
+                body={"query": {"match_all": {}}},
+                size=1000,
+            )
+            jobs = []
+            if response:
+                jobs = response["hits"]["hits"]
 
-                    jobagent = Agent(
-                        role="Evaluation",
-                        goal="""You are an expert at analyzing jobs for alignment to a location.""",
-                        backstory="You are an expert at evaluating jobs.",
-                        llm=llm,
-                        verbose=True,
-                        allow_delegation=False,
-                        max_iter=10,
-                    )
+            for persona in personas:
+                for job in jobs:
+                    query = {
+                        "size": 0,
+                        "query": {
+                            "bool": {
+                                "must": [
+                                    {
+                                        "term": {
+                                            "persona_id.keyword": {"value": persona["_id"]}
+                                        }
+                                    },
+                                    {"term": {"job_id.keyword": {"value": job["_id"]}}},
+                                    {"term": {"evaluation_name": {"value": self.evaluation_name}}}
+                                ]
+                            }
+                        },
+                    }
+                    response = client.search(index="job_evaluations_index", body=query)
+                    if response and response["hits"]["total"]["value"] == 0:
 
-                    try:
-
-                        class LocationEvaluation(BaseModel):
-                            locationalignment: Annotated[
-                                int,
-                                Field(
-                                    ge=1,
-                                    le=100,
-                                    description="An integer between 1 and 100 representing the match between the job and the desired location(s).",
-                                ),
-                            ]
-
-                        task1 = Task(
-                            description="""Read the following job description.  You're tasked with coming
-                            up with a score value between 1-100 that quantifies the match of the job to a set of
-                            desired locations for the position.  A low score denotes no match or a low match
-                            to the desired location and a high score denotes a high match.
-                            If the job doesn't explicitly mention a physical location, give it a score of 1.
-                                    The desired location(s) for the position are one or more of the following: """
-                            + persona["_source"]["desired_location"]
-                            + "\n### Job Posting:\n"
-                            + job["_source"]["content"],
-                            agent=jobagent,
-                            expected_output="An integer between 1 and 100 representing the match between the job and the desired location(s).",
-                            output_pydantic=LocationEvaluation,
-                        )
-
-                        crew = Crew(
-                            agents=[jobagent],
-                            tasks=[task1],
+                        jobagent = Agent(
+                            role="Evaluation",
+                            goal="You are an expert at evaluating jobs.",
+                            backstory="You are an expert at evaluating jobs.",
+                            llm=llm,
                             verbose=True,
-                            process=Process.sequential,
+                            allow_delegation=False,
+                            max_iter=10,
                         )
 
-                        result = crew.kickoff()
+                        try:
 
-                        if result:
-                            # print(f"Pydantic: {result.pydantic}")
-                            # print(f"Tasks output: {result.tasks_output}")
-                            # print(f"Token usage: {result.token_usage}")
-                            # print(f"SCORE: {result["locationalignment"]}")
-
-                            # count the number of times our location keyword is found
-                            keyword_location_match_number = 0
-                            for check in persona["_source"]["desired_location"].split(
-                                ","
-                            ):
-                                keyword_location_match_number += (
-                                    job["_source"]["content"]
-                                    .lower()
-                                    .count(check.strip().lower())
-                                )
-
-                            response = client.create(
-                                index="job_evaluations_index",
-                                id=f"{persona['_id']}_{job['_id']}",
-                                body={
-                                    "persona_id": persona["_id"],
-                                    "job_id": job["_id"],
-                                    "llm_location_evaluation": int(
-                                        result["locationalignment"]
+                            class LocationEvaluation(BaseModel):
+                                evaluationinteger: Annotated[
+                                    int,
+                                    Field(
+                                        ge=1,
+                                        le=100,
+                                        description=self.evaluation_description,
                                     ),
-                                    "keyword_location_evaluation": keyword_location_match_number,
-                                },
+                                ]
+
+                            task1 = Task(
+                                description=self.llm_task
+                                + persona["_source"][self.persona_key]
+                                + "\n### Job Posting:\n"
+                                + job["_source"]["content"],
+                                agent=jobagent,
+                                expected_output=self.evaluation_description,
+                                output_pydantic=LocationEvaluation,
                             )
-                    except Exception as e:
-                        print(f"Error: {e}")
-                        continue  # on in the for loop through jobs
 
-    except Exception as e:
-        print(f"Error: {e}")
+                            crew = Crew(
+                                agents=[jobagent],
+                                tasks=[task1],
+                                verbose=True,
+                                process=Process.sequential,
+                            )
 
+                            result = crew.kickoff()
+
+                            if result:
+                                # print(f"Pydantic: {result.pydantic}")
+                                # print(f"Tasks output: {result.tasks_output}")
+                                # print(f"Token usage: {result.token_usage}")
+                                # print(f"SCORE: {result["locationalignment"]}")
+
+                                # count the number of times our item keyword(s) is found
+                                keyword_item_match_number = 0
+                                for check in persona["_source"][self.persona_key].split(
+                                    ","
+                                ):
+                                    keyword_item_match_number += (
+                                        job["_source"]["content"]
+                                        .lower()
+                                        .count(check.strip().lower())
+                                    )
+
+                                response = client.create(
+                                    index="job_evaluations_index",
+                                    id=str(uuid4()),
+                                    body={
+                                        "persona_id": persona["_id"],
+                                        "job_id": job["_id"],
+                                        "evaluation_name": self.evaluation_name,
+                                        "evaluation_value": int(
+                                            result["evaluationinteger"]
+                                        ),
+                                        "keyword_match": keyword_item_match_number,
+                                    },
+                                )
+                        except Exception as e:
+                            print(f"Error: {e}")
+                            continue  # on in the for loop through jobs
+
+        except Exception as e:
+            print(f"Error: {e}")
+
+
+def evaluate_location():
+    eval = Evaluation(evaluation_name="Location",
+                evaluation_description="An integer between 1 and 100 representing the match between the job and the desired location(s).",
+                llm_task="""Read the following job description.  You're tasked with coming
+                        up with a score value between 1-100 that quantifies the match of the job to a set of
+                        desired locations for the position.  A low score denotes no match or a low match
+                        to the desired location and a high score denotes a high match.
+                        If the job doesn't explicitly mention a physical location, give it a score of 1.
+                        The desired location(s) for the position are one or more of the following: """,
+                persona_key="desired_location"
+            )
+    eval.runevaluation()
 
 def evaluate_skills():
-    try:
-        client = OpenSearch(
-            hosts=[{"host": "opensearch-node1", "port": "9200"}],
-            use_ssl=False,
-            verify_certs=False,
-        )
+    eval = Evaluation(evaluation_name="Skills",
+                evaluation_description="An integer between 1 and 100 representing the match between the job and the skillsets of the potential employee.",
+                llm_task="""Read the following job description.  You're tasked with coming
+                    up with a score value between 1-100 that quantifies the match of the job to a set of
+                    employee skills.  A low score denotes no match or a low match
+                    to the desired skills and a high score denotes a high match.
+                    The potential employee skills for the position are the following: """,
+                persona_key="skills",
+            )
+    eval.runevaluation()
 
-        llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
+def evaluate_include_keywords():
+    eval = Evaluation(evaluation_name="Include Keywords",
+                evaluation_description="An integer between 1 and 100 representing the match between the job and the keywords of the potential employee.",
+                llm_task="""Read the following job description.  You're tasked with coming
+                    up with a score value between 1-100 that quantifies the match of the job to a set of
+                    employee keywords.  A low score denotes no match or a low match
+                    to the desired keywords and a high score denotes a high match.
+                    The potential keywords for the position are the following: """,
+                persona_key="match_keywords",
+            )
+    eval.runevaluation()
 
-        response = client.search(
-            index="personas_index",
-            # Query to match all documents
-            body={"query": {"match_all": {}}},
-            size=1000,
-        )
-        personas = []
-        if response:
-            personas = response["hits"]["hits"]
+def evaluate_exclude_keywords():
+    eval = Evaluation(evaluation_name="Exclude Keywords",
+                evaluation_description="An integer between 1 and 100 representing the match between the job and the excluded keywords of the potential employee.",
+                llm_task="""Read the following job description.  You're tasked with coming
+                    up with a score value between 1-100 that quantifies the match of the job to a set of
+                    employee keywords that we don't want to show up.  A low score denotes a high match to these unwanted keywords and
+                    and a high score denotes a low match where no or few keywords shows up.
+                    The potential excluded keywords for the position are the following: """,
+                persona_key="exclude_keywords",
+            )
+    eval.runevaluation()
 
-        response = client.search(
-            index="jobs_index",
-            # Query to match all documents
-            body={"query": {"match_all": {}}},
-            size=1000,
-        )
-        jobs = []
-        if response:
-            jobs = response["hits"]["hits"]
-
-        for persona in personas:
-            for job in jobs:
-                query = {
-                    "size": 0,
-                    "query": {
-                        "bool": {
-                            "must": [
-                                {
-                                    "term": {
-                                        "persona_id.keyword": {"value": persona["_id"]}
-                                    }
-                                },
-                                {"term": {"job_id.keyword": {"value": job["_id"]}}},
-                            ]
-                        }
-                    },
-                }
-                response = client.search(index="job_evaluations_index", body=query)
-                if response and response["hits"]["total"]["value"] == 0:
-
-                    jobagent = Agent(
-                        role="Evaluation",
-                        goal="""You are an expert at analyzing jobs for alignment to skillsets.""",
-                        backstory="You are an expert at evaluating jobs.",
-                        llm=llm,
-                        verbose=True,
-                        allow_delegation=False,
-                        max_iter=10,
-                    )
-
-                    try:
-
-                        class SkillEvaluation(BaseModel):
-                            skillalignment: Annotated[
-                                int,
-                                Field(
-                                    ge=1,
-                                    le=100,
-                                    description="An integer between 1 and 100 representing the match between the job and the skillsets of the potential employee.",
-                                ),
-                            ]
-
-                        task1 = Task(
-                            description="""Read the following job description.  You're tasked with coming
-                            up with a score value between 1-100 that quantifies the match of the job to a set of
-                            employee skills.  A low score denotes no match or a low match
-                            to the desired skills and a high score denotes a high match.
-                            The potential employee skills for the position are the following: """
-                            + persona["_source"]["skills"]
-                            + "\n### Job Posting:\n"
-                            + job["_source"]["content"],
-                            agent=jobagent,
-                            expected_output="An integer between 1 and 100 representing the match between the job and the skillsets of the potential employee.",
-                            output_pydantic=SkillEvaluation,
-                        )
-
-                        crew = Crew(
-                            agents=[jobagent],
-                            tasks=[task1],
-                            verbose=True,
-                            process=Process.sequential,
-                        )
-
-                        result = crew.kickoff()
-
-                        if result:
-                            # count the number of times our skill keyword is found
-                            keyword_skill_match_number = 0
-                            for check in persona["_source"]["skills"].split(","):
-                                keyword_skill_match_number += (
-                                    job["_source"]["content"]
-                                    .lower()
-                                    .count(check.strip().lower())
-                                )
-
-                            response = client.create(
-                                index="job_evaluations_index",
-                                id=f"{persona['_id']}_{job['_id']}",
-                                body={
-                                    "persona_id": persona["_id"],
-                                    "job_id": job["_id"],
-                                    "llm_skill_evaluation": int(
-                                        result["skillalignment"]
-                                    ),
-                                    "keyword_skill_evaluation": keyword_skill_match_number,
-                                },
-                            )
-                    except Exception as e:
-                        print(f"Error: {e}")
-                        continue  # on in the for loop through jobs
-
-    except Exception as e:
-        print(f"Error: {e}")
+def evaluate_resume_match():
+    eval = Evaluation(evaluation_name="Resume Match",
+                evaluation_description="An integer between 1 and 100 representing the match between the job and the resume of the potential employee.",
+                llm_task="""Read the following job description.  You're tasked with coming
+                    up with a score value between 1-100 that quantifies the match of the job to the resume text
+                    of a potential employee.  A low score denotes a low match to the resume and
+                    and a high score denotes a high match where there is strong alignment.
+                    The resume of the potential employee is as follows: """,
+                persona_key="resume",
+            )
+    eval.runevaluation()
