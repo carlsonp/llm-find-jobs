@@ -4,8 +4,8 @@ models/*
 results/*
 src/*.json
 src/*.xlsx
-
-
+searxng/settings.yml.new
+searxng/uwsgi.ini.new
 
 
 
