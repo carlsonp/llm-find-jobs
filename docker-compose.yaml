@@ -38,21 +38,6 @@ services:
       - ./data/:/data/:ro
       - ./models/:/models:rw
 
-  llm:
-    build:
-      context: .
-      dockerfile: Dockerfile_llm.txt
-      args:
-        DOCKER_BUILDKIT: 1
-    environment:
-      TZ: America/Chicago
-      LLM_API: ${LLM_API}
-      LLM_MODEL: ${LLM_MODEL}
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
-    volumes:
-      - ./models/:/models:ro
-      - ./results/:/results:rw
-
   valkey:
     image: valkey/valkey:latest
     restart: unless-stopped
