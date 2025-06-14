@@ -696,6 +696,12 @@ def create_app():
             # perform a refresh on our index
             client.indices.refresh(index="personas_index")
 
+            # delete the items in our job_evaluations_index that are now stale
+            response = client.delete_by_query(
+                index="job_evaluations_index",
+                body={"query": {"term": {"persona_id.keyword": {"value": persona_id}}}},
+            )
+
             return redirect("/")
         except Exception as e:
             app.logger.error(e)
