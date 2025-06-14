@@ -25,6 +25,42 @@ def download_jobs():
             verify_certs=False,
         )
 
+        index_name = "job_evaluations_index"
+        index_body = {
+            "settings": {
+                "analysis": {
+                    "tokenizer": {"standard": {"type": "standard"}},
+                    "analyzer": {
+                        "default": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": ["lowercase"],
+                        }
+                    },
+                }
+            },
+            "mappings": {
+                "properties": {
+                    "persona_id": {
+                        "type": "text",
+                        "fields": {"keyword": {"type": "keyword"}},
+                    },
+                    "job_id": {
+                        "type": "text",
+                        "fields": {"keyword": {"type": "keyword"}},
+                    },
+                    "llm_location_evaluation": {"type": "integer"},
+                    "keyword_location_evaluation": {"type": "integer"},
+                    "llm_skill_evaluation": {"type": "integer"},
+                    "keyword_skill_evaluation": {"type": "integer"},
+                }
+            },
+        }
+
+        # Create index if it doeesn't exist
+        if not client.indices.exists(index=index_name):
+            client.indices.create(index=index_name, body=index_body)
+
         query = {
             "size": 100,
             "query": {"term": {"content.keyword": {"value": "__EMPTY__"}}},
@@ -131,40 +167,6 @@ def evaluate_location():
 
         llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
 
-        index_name = "job_evaluations_index"
-        index_body = {
-            "settings": {
-                "analysis": {
-                    "tokenizer": {"standard": {"type": "standard"}},
-                    "analyzer": {
-                        "default": {
-                            "type": "custom",
-                            "tokenizer": "standard",
-                            "filter": ["lowercase"],
-                        }
-                    },
-                }
-            },
-            "mappings": {
-                "properties": {
-                    "persona_id": {
-                        "type": "text",
-                        "fields": {"keyword": {"type": "keyword"}},
-                    },
-                    "job_id": {
-                        "type": "text",
-                        "fields": {"keyword": {"type": "keyword"}},
-                    },
-                    "llm_location_evaluation": {"type": "integer"},
-                    "keyword_location_evaluation": {"type": "integer"},
-                }
-            },
-        }
-
-        # Create index if it doeesn't exist
-        if not client.indices.exists(index=index_name):
-            client.indices.create(index=index_name, body=index_body)
-
         response = client.search(
             index="personas_index",
             # Query to match all documents
@@ -202,7 +204,7 @@ def evaluate_location():
                         }
                     },
                 }
-                response = client.search(index=index_name, body=query)
+                response = client.search(index="job_evaluations_index", body=query)
                 if response and response["hits"]["total"]["value"] == 0:
 
                     jobagent = Agent(
@@ -269,7 +271,7 @@ def evaluate_location():
                                 )
 
                             response = client.create(
-                                index=index_name,
+                                index="job_evaluations_index",
                                 id=f"{persona['_id']}_{job['_id']}",
                                 body={
                                     "persona_id": persona["_id"],
@@ -278,6 +280,131 @@ def evaluate_location():
                                         result["locationalignment"]
                                     ),
                                     "keyword_location_evaluation": keyword_location_match_number,
+                                },
+                            )
+                    except Exception as e:
+                        print(f"Error: {e}")
+                        continue  # on in the for loop through jobs
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+def evaluate_skills():
+    try:
+        client = OpenSearch(
+            hosts=[{"host": "opensearch-node1", "port": "9200"}],
+            use_ssl=False,
+            verify_certs=False,
+        )
+
+        llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
+
+        response = client.search(
+            index="personas_index",
+            # Query to match all documents
+            body={"query": {"match_all": {}}},
+            size=1000,
+        )
+        personas = []
+        if response:
+            personas = response["hits"]["hits"]
+
+        response = client.search(
+            index="jobs_index",
+            # Query to match all documents
+            body={"query": {"match_all": {}}},
+            size=1000,
+        )
+        jobs = []
+        if response:
+            jobs = response["hits"]["hits"]
+
+        for persona in personas:
+            for job in jobs:
+                query = {
+                    "size": 0,
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {
+                                    "term": {
+                                        "persona_id.keyword": {"value": persona["_id"]}
+                                    }
+                                },
+                                {"term": {"job_id.keyword": {"value": job["_id"]}}},
+                            ]
+                        }
+                    },
+                }
+                response = client.search(index="job_evaluations_index", body=query)
+                if response and response["hits"]["total"]["value"] == 0:
+
+                    jobagent = Agent(
+                        role="Evaluation",
+                        goal="""You are an expert at analyzing jobs for alignment to skillsets.""",
+                        backstory="You are an expert at evaluating jobs.",
+                        llm=llm,
+                        verbose=True,
+                        allow_delegation=False,
+                        max_iter=10,
+                    )
+
+                    try:
+
+                        class SkillEvaluation(BaseModel):
+                            skillalignment: Annotated[
+                                int,
+                                Field(
+                                    ge=1,
+                                    le=100,
+                                    description="An integer between 1 and 100 representing the match between the job and the skillsets of the potential employee.",
+                                ),
+                            ]
+
+                        task1 = Task(
+                            description="""Read the following job description.  You're tasked with coming
+                            up with a score value between 1-100 that quantifies the match of the job to a set of
+                            employee skills.  A low score denotes no match or a low match
+                            to the desired skills and a high score denotes a high match.
+                            The potential employee skills for the position are the following: """
+                            + persona["_source"]["skills"]
+                            + "\n### Job Posting:\n"
+                            + job["_source"]["content"],
+                            agent=jobagent,
+                            expected_output="An integer between 1 and 100 representing the match between the job and the skillsets of the potential employee.",
+                            output_pydantic=SkillEvaluation,
+                        )
+
+                        crew = Crew(
+                            agents=[jobagent],
+                            tasks=[task1],
+                            verbose=True,
+                            process=Process.sequential,
+                        )
+
+                        result = crew.kickoff()
+
+                        if result:
+                            # count the number of times our skill keyword is found
+                            keyword_skill_match_number = 0
+                            for check in persona["_source"]["skills"].split(","):
+                                keyword_skill_match_number += (
+                                    job["_source"]["content"]
+                                    .lower()
+                                    .count(check.strip().lower())
+                                )
+
+                            response = client.create(
+                                index="job_evaluations_index",
+                                id=f"{persona['_id']}_{job['_id']}",
+                                body={
+                                    "persona_id": persona["_id"],
+                                    "job_id": job["_id"],
+                                    "llm_skill_evaluation": int(
+                                        result["skillalignment"]
+                                    ),
+                                    "keyword_skill_evaluation": keyword_skill_match_number,
                                 },
                             )
                     except Exception as e:

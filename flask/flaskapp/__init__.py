@@ -15,7 +15,7 @@ from sentence_transformers import SentenceTransformer
 from langchain_community.tools import DuckDuckGoSearchResults, DuckDuckGoSearchRun
 from langchain_community.utilities import SearxSearchWrapper
 
-from worker_jobs import download_jobs, evaluate_location
+from worker_jobs import download_jobs, evaluate_location, evaluate_skills
 
 from uuid import uuid4
 
@@ -349,6 +349,8 @@ def create_app():
             q.enqueue(download_jobs)
             # enqueue a job to evaluate the job location relative to our desired locations available in the personas
             q.enqueue(evaluate_location)
+            # enqueue a job to evaluate the job description relative to our persona skillset
+            q.enqueue(evaluate_skills)
 
             return render_template(
                 "post_job_search.html", query=request.form["search-query"]
@@ -764,6 +766,8 @@ def create_app():
             q.enqueue(download_jobs)
             # enqueue a job to evaluate the job location relative to our desired locations available in the personas
             q.enqueue(evaluate_location)
+            # enqueue a job to evaluate the job description relative to our persona skillset
+            q.enqueue(evaluate_skills)
 
             return redirect(
                 url_for("homepage", textmessage="Tasks queued successfully")
