@@ -38,10 +38,10 @@ docker compose build --pull
 ```
 
 Train the job classification model.  This can take a few minutes depending
-on your hardware.  Make sure to run on a system with at least 64 GB of RAM.
+on your hardware.  Make sure to run on a system with at least 32 GB of RAM.
 
 ```shell
-docker compose run trainclassifier
+docker compose run trainclassifier python3 /src/job-classifier.py
 ```
 
 Bring up the entire stack including OpenSearch and the Flask application.
