@@ -210,7 +210,7 @@ class Evaluation:
                                         }
                                     },
                                     {"term": {"job_id.keyword": {"value": job["_id"]}}},
-                                    {"term": {"evaluation_name": {"value": self.evaluation_name}}}
+                                    {"term": {"evaluation_name.keyword": {"value": self.evaluation_name}}}
                                 ]
                             }
                         },
