@@ -25,34 +25,39 @@
 
         <div class="container mt-4">
             <div class="row text-center g-2">
-                <div class="col-6 col-md-4 col-lg-2">
+                <div class="col">
                     <a href="/updatestatus/{{ document['_id'] }}/NotJob/" class="btn btn-danger w-100">
                         <iconify-icon icon="material-symbols:report" class="fs-2"></iconify-icon><br>Not a Job
                     </a>
                 </div>
-                <div class="col-6 col-md-4 col-lg-2">
+                <div class="col">
                     <a href="/updatestatus/{{ document['_id'] }}/NotRelevant/" class="btn btn-warning w-100">
                         <iconify-icon icon="material-symbols:feedback" class="fs-2"></iconify-icon><br>Not Relevant
                     </a>
                 </div>
-                <div class="col-6 col-md-4 col-lg-2">
+                <div class="col">
                     <a href="/updatestatus/{{ document['_id'] }}/Favorite/" class="btn btn-info w-100">
                         <iconify-icon icon="material-symbols:star" class="fs-2"></iconify-icon><br>Favorite
                     </a>
                 </div>
-                <div class="col-6 col-md-4 col-lg-2">
+                <div class="col">
                     <a href="/updatestatus/{{ document['_id'] }}/Applied/" class="btn btn-success w-100">
                         <iconify-icon icon="material-symbols:thumb-up" class="fs-2"></iconify-icon><br>Applied
                     </a>
                 </div>
-                <div class="col-6 col-md-4 col-lg-2">
+                <div class="col">
                     <a href="/updatestatus/{{ document['_id'] }}/Rejected/" class="btn btn-secondary w-100">
                         <iconify-icon icon="material-symbols:thumb-down" class="fs-2"></iconify-icon><br>Rejected
                     </a>
                 </div>
-                <div class="col-6 col-md-4 col-lg-2">
+                <div class="col">
                     <a href="/updatestatus/{{ document['_id'] }}/NoLongerAvailable/" class="btn btn-secondary w-100">
                         <iconify-icon icon="material-symbols:cancel" class="fs-2"></iconify-icon><br>No Longer Available
+                    </a>
+                </div>
+                <div class="col">
+                    <a href="/deletejob/{{ document['_id'] }}" class="btn btn-secondary w-100">
+                        <iconify-icon icon="material-symbols:delete" class="fs-2"></iconify-icon><br>Delete
                     </a>
                 </div>
             </div>

@@ -353,6 +353,26 @@ def create_app():
         except Exception as e:
             app.logger.error(e)
             return "Failure in post job search"
+        
+    @app.route("/deletejob/<job_id>", methods=["GET"])
+    def deletejob(job_id):
+        try:
+            # Connect to OpenSearch
+            client = OpenSearch(
+                hosts=[{"host": "opensearch-node1", "port": "9200"}],
+                use_ssl=False,
+                verify_certs=False,
+            )
+
+            response = client.delete(index="jobs_index", id=job_id)
+
+            # perform a refresh on our index
+            client.indices.refresh(index="jobs_index")
+
+            return redirect(url_for("homepage"))
+        except Exception as e:
+            app.logger.error(e)
+            return "Failure in delete job"
 
     @app.route("/generate_search_terms/<persona_id>", methods=["GET"])
     def generate_search_terms(persona_id):
