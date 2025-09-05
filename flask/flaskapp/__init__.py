@@ -102,6 +102,49 @@ def create_app():
     @app.route("/health")
     def health():
         return "Ok"
+    
+
+    @app.route("/add_new_job", methods=["GET", "POST"])
+    def add_new_job():
+        try:
+            if request.method == "POST":
+                # Connect to OpenSearch
+                client = OpenSearch(
+                    hosts=[{"host": "opensearch-node1", "port": "9200"}],
+                    use_ssl=False,
+                    verify_certs=False,
+                )
+                # add the URL if we don't already have it in our database
+                # store the md5 hash of the URL
+                try:
+                    client.create(
+                        index="jobs_index",
+                        id=hashlib.md5(request.form['url'].encode()).hexdigest(),
+                        body={
+                            "url": request.form['url'],
+                            "content": "__EMPTY__",
+                            "status": "Unknown",
+                            "date_added": datetime.now().isoformat(),
+                        },
+                    )
+                except ConflictError:
+                    pass  # it's already in the database
+
+                # perform a refresh on our index
+                client.indices.refresh(index="jobs_index")
+
+                return redirect(
+                    url_for("homepage", textmessage="Job URL added")
+                )
+            else:
+                return render_template(
+                    "add_new_job.html"
+                )
+
+        except Exception as e:
+            app.logger.error(e)
+            return "Failure in post new job"
+        
 
     @app.route("/persona", defaults={"persona_id": None}, methods=["GET", "POST"])
     @app.route("/persona/<persona_id>", methods=["GET", "POST"])
@@ -366,10 +409,23 @@ def create_app():
 
             response = client.delete(index="jobs_index", id=job_id)
 
+            # Delete all job evaluations where the job_id is used
+            query = {
+                "query": {
+                    "term": {  # exact match
+                        "job_id": job_id
+                    }
+                }
+            }
+            response = client.delete_by_query(index="job_evaluations_index", body=query)
+
             # perform a refresh on our index
             client.indices.refresh(index="jobs_index")
+            client.indices.refresh(index="job_evaluations_index")
 
-            return redirect(url_for("homepage"))
+            return redirect(
+                url_for("homepage", textmessage="Job deleted")
+            )
         except Exception as e:
             app.logger.error(e)
             return "Failure in delete job"

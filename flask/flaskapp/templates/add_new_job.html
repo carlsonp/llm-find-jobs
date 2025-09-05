@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<br>
+<div class="container text-center">
+    <h2>Add New Job</h2>
+        <br><br>
+        <form action="{{ url_for('add_new_job') }}" method="POST">
+            <input class="form-control me-2" type="text" id="url" name="url" placeholder="https://www..." aria-label="Search">
+            <br><br>
+
+            <button type="submit" class="btn btn-success">
+                <iconify-icon icon="material-symbols:circle-add"></iconify-icon> Add Job URL
+            </button>
+        </form>
+</div>
+<br>
+{% endblock %}
