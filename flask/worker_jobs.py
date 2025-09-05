@@ -1,4 +1,4 @@
-import os
+import os, re
 from datetime import datetime
 from sentence_transformers import SentenceTransformer
 from opensearchpy import OpenSearch
@@ -11,6 +11,21 @@ from pydantic import BaseModel, Field
 from typing import Annotated
 from crewai import Agent, Task, Crew, Process, LLM
 
+
+
+def extract_words_from_url(url: str) -> str:
+    # Remove protocol (http://, https://) and query strings
+    url = re.sub(r'^https?:\/\/', '', url) # remove http(s)://
+    url = url.split('?')[0].split('#')[0] # remove query params / fragments
+
+    # Split on common separators: / . - _ ~ etc.
+    parts = re.split(r'[\./\-_\~]+', url)
+
+    # Keep only alphabetic words (ignore numbers)
+    words = [p for p in parts if p.isalpha()]
+
+    # Join back into a single string
+    return ' '.join(words)
 
 def download_jobs():
     try:
@@ -127,7 +142,7 @@ def download_jobs():
                         id=doc["_id"],
                         body={
                             "doc": {
-                                "content": scrape_results,
+                                "content": scrape_results + " " + extract_words_from_url(doc["_source"]["url"]),
                                 "date_downloaded": datetime.now().isoformat(),
                                 "content_vector": model.encode(scrape_results).tolist(),
                                 "status": status,
@@ -142,7 +157,7 @@ def download_jobs():
                         id=doc["_id"],
                         body={
                             "doc": {
-                                "content": "Error, unable to load content",
+                                "content": "Error, unable to load content " + extract_words_from_url(doc["_source"]["url"]),
                                 "date_downloaded": datetime.now().isoformat(),
                                 "content_vector": model.encode(
                                     "Error, unable to load content"
