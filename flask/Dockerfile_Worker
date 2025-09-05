@@ -19,7 +19,7 @@ RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # https://docs.docker.com/build/guide/mounts/#add-a-cache-mount
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install rq opensearch-py spacy sentence-transformers numpy selenium beautifulsoup4 duckduckgo-search langchain-community crewai[tools] pydantic
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install rq opensearch-py spacy sentence-transformers numpy selenium beautifulsoup4 ddgs langchain-community crewai[tools] pydantic
 
 ENV PYTHONPATH=.
 

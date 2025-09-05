@@ -19,7 +19,7 @@ RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # https://docs.docker.com/build/guide/mounts/#add-a-cache-mount
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install opensearch-py gunicorn flask-compress humanize spacy sentence-transformers numpy selenium beautifulsoup4 duckduckgo-search langchain-community crewai[tools] pydantic rq
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install opensearch-py gunicorn flask-compress humanize spacy sentence-transformers numpy selenium beautifulsoup4 ddgs langchain-community crewai[tools] pydantic rq
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s \
    CMD curl --fail localhost:5000/health || exit 1
