@@ -24,7 +24,19 @@
                 {% for job in jobs %}
                 <tr>
                     <td>{{ job['evaluation_value'] }}</td>
-                    <td>{{ job['status'] }}</td>
+                    {% if job['status'] == "Not a Job" %}
+                        <td class="table-danger">{{ job['status'] }}</td>
+                    {% elif job['status'] == "Not Relevant" %}
+                        <td class="table-warning">{{ job['status'] }}</td>
+                    {% elif job['status'] == "Favorite" %}
+                        <td class="table-info">{{ job['status'] }}</td>
+                    {% elif job['status'] == "Applied" %}
+                        <td class="table-success">{{ job['status'] }}</td>
+                    {% elif job['status'] == "Rejected" or job['status'] == "No Longer Available" %}
+                        <td class="table-secondary">{{ job['status'] }}</td>
+                    {% else %}
+                        <td>{{ job['status'] }}</td>
+                    {% endif %}
                     <td><a href="{{ job['url'] }}" target="_blank">{{ job['url'] }}</a></td>
                     <td><a class="btn btn-primary" href="/details/{{ job['id']}}"><iconify-icon icon="material-symbols:topic"></iconify-icon> Details</a></td>
                 </tr>
