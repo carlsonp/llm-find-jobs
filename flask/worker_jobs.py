@@ -12,20 +12,20 @@ from typing import Annotated
 from crewai import Agent, Task, Crew, Process, LLM
 
 
-
 def extract_words_from_url(url: str) -> str:
     # Remove protocol (http://, https://) and query strings
-    url = re.sub(r'^https?:\/\/', '', url) # remove http(s)://
-    url = url.split('?')[0].split('#')[0] # remove query params / fragments
+    url = re.sub(r"^https?:\/\/", "", url)  # remove http(s)://
+    url = url.split("?")[0].split("#")[0]  # remove query params / fragments
 
     # Split on common separators: / . - _ ~ etc.
-    parts = re.split(r'[\./\-_\~]+', url)
+    parts = re.split(r"[\./\-_\~]+", url)
 
     # Keep only alphabetic words (ignore numbers)
     words = [p for p in parts if p.isalpha()]
 
     # Join back into a single string
-    return ' '.join(words)
+    return " ".join(words)
+
 
 def download_jobs():
     try:
@@ -92,16 +92,22 @@ def download_jobs():
                     # Set up options for headless Chrome
                     # https://datawookie.dev/blog/2023/12/chrome-chromedriver-in-docker/
                     options = ChromeOptions()
-                    options.headless = (
-                        True  # Enable headless mode for invisible operation
-                    )
                     options.add_argument(
                         "--window-size=1920,1200"
                     )  # Define the window size of the browser
-                    options.add_argument("--headless")
+                    options.add_argument("--headless=new")
                     options.add_argument("--disable-gpu")
                     options.add_argument("--no-sandbox")
                     options.add_argument("--disable-dev-shm-usage")
+                    options.add_argument("--enable-javascript")
+                    options.add_argument(
+                        "--disable-blink-features=AutomationControlled"
+                    )
+                    options.add_argument(
+                        "user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    )
+                    options.add_argument("--lang=en-US,en")
                     driver = Chrome(options=options)
 
                     driver.set_page_load_timeout(20)  # seconds
@@ -142,7 +148,9 @@ def download_jobs():
                         id=doc["_id"],
                         body={
                             "doc": {
-                                "content": scrape_results + " " + extract_words_from_url(doc["_source"]["url"]),
+                                "content": scrape_results
+                                + " "
+                                + extract_words_from_url(doc["_source"]["url"]),
                                 "date_downloaded": datetime.now().isoformat(),
                                 "content_vector": model.encode(scrape_results).tolist(),
                                 "status": status,
@@ -157,7 +165,8 @@ def download_jobs():
                         id=doc["_id"],
                         body={
                             "doc": {
-                                "content": "Error, unable to load content " + extract_words_from_url(doc["_source"]["url"]),
+                                "content": "Error, unable to load content "
+                                + extract_words_from_url(doc["_source"]["url"]),
                                 "date_downloaded": datetime.now().isoformat(),
                                 "content_vector": model.encode(
                                     "Error, unable to load content"
@@ -221,11 +230,19 @@ class Evaluation:
                                 "must": [
                                     {
                                         "term": {
-                                            "persona_id.keyword": {"value": persona["_id"]}
+                                            "persona_id.keyword": {
+                                                "value": persona["_id"]
+                                            }
                                         }
                                     },
                                     {"term": {"job_id.keyword": {"value": job["_id"]}}},
-                                    {"term": {"evaluation_name.keyword": {"value": self.evaluation_name}}}
+                                    {
+                                        "term": {
+                                            "evaluation_name.keyword": {
+                                                "value": self.evaluation_name
+                                            }
+                                        }
+                                    },
                                 ]
                             }
                         },
@@ -313,62 +330,71 @@ class Evaluation:
 
 
 def evaluate_location():
-    eval = Evaluation(evaluation_name="Location",
-                evaluation_description="An integer between 1 and 100 representing the match between the job and the desired location(s).",
-                llm_task="""Read the following job description.  You're tasked with coming
+    eval = Evaluation(
+        evaluation_name="Location",
+        evaluation_description="An integer between 1 and 100 representing the match between the job and the desired location(s).",
+        llm_task="""Read the following job description.  You're tasked with coming
                         up with a score value between 1-100 that quantifies the match of the job to a set of
                         desired locations for the position.  A low score denotes no match or a low match
                         to the desired location and a high score denotes a high match.
                         If the job doesn't explicitly mention a physical location, give it a score of 1.
                         The desired location(s) for the position are one or more of the following: """,
-                persona_key="desired_location"
-            )
+        persona_key="desired_location",
+    )
     eval.runevaluation()
 
+
 def evaluate_skills():
-    eval = Evaluation(evaluation_name="Skills",
-                evaluation_description="An integer between 1 and 100 representing the match between the job and the skillsets of the potential employee.",
-                llm_task="""Read the following job description.  You're tasked with coming
+    eval = Evaluation(
+        evaluation_name="Skills",
+        evaluation_description="An integer between 1 and 100 representing the match between the job and the skillsets of the potential employee.",
+        llm_task="""Read the following job description.  You're tasked with coming
                     up with a score value between 1-100 that quantifies the match of the job to a set of
                     employee skills.  A low score denotes no match or a low match
                     to the desired skills and a high score denotes a high match.
                     The potential employee skills for the position are the following: """,
-                persona_key="skills",
-            )
+        persona_key="skills",
+    )
     eval.runevaluation()
 
+
 def evaluate_include_keywords():
-    eval = Evaluation(evaluation_name="Include Keywords",
-                evaluation_description="An integer between 1 and 100 representing the match between the job and the keywords of the potential employee.",
-                llm_task="""Read the following job description.  You're tasked with coming
+    eval = Evaluation(
+        evaluation_name="Include Keywords",
+        evaluation_description="An integer between 1 and 100 representing the match between the job and the keywords of the potential employee.",
+        llm_task="""Read the following job description.  You're tasked with coming
                     up with a score value between 1-100 that quantifies the match of the job to a set of
                     employee keywords.  A low score denotes no match or a low match
                     to the desired keywords and a high score denotes a high match.
                     The potential keywords for the position are the following: """,
-                persona_key="match_keywords",
-            )
+        persona_key="match_keywords",
+    )
     eval.runevaluation()
 
+
 def evaluate_exclude_keywords():
-    eval = Evaluation(evaluation_name="Exclude Keywords",
-                evaluation_description="An integer between 1 and 100 representing the match between the job and the excluded keywords of the potential employee.",
-                llm_task="""Read the following job description.  You're tasked with coming
+    eval = Evaluation(
+        evaluation_name="Exclude Keywords",
+        evaluation_description="An integer between 1 and 100 representing the match between the job and the excluded keywords of the potential employee.",
+        llm_task="""Read the following job description.  You're tasked with coming
                     up with a score value between 1-100 that quantifies the match of the job to a set of
                     employee keywords that we don't want to show up.  A low score denotes a high match to these unwanted keywords and
                     and a high score denotes a low match where no or few keywords shows up.
                     The potential excluded keywords for the position are the following: """,
-                persona_key="exclude_keywords",
-            )
+        persona_key="exclude_keywords",
+    )
     eval.runevaluation()
 
+
 def evaluate_resume_match():
-    eval = Evaluation(evaluation_name="Resume Match",
-                evaluation_description="An integer between 1 and 100 representing the match between the job and the resume of the potential employee.",
-                llm_task="""Read the following job description.  You're tasked with coming
+    eval = Evaluation(
+        evaluation_name="Resume Match",
+        evaluation_description="An integer between 1 and 100 representing the match between the job and the resume of the potential employee.",
+        llm_task="""Read the following job description.  You're tasked with coming
                     up with a score value between 1-100 that quantifies the match of the job to the resume text
                     of a potential employee.  A low score denotes a low match to the resume and
                     and a high score denotes a high match where there is strong alignment.
                     The resume of the potential employee is as follows: """,
-                persona_key="resume",
-            )
+        persona_key="resume",
+    )
     eval.runevaluation()
