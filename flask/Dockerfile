@@ -29,6 +29,10 @@ COPY init-embedding.py /
 RUN HF_HOME=/root/.cache/huggingface \
     python3 /init-embedding.py
 
+# after we download any Huggingface models, run it completely offline
+ENV HF_HUB_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=1
+
 COPY startup-dev.sh /
 RUN dos2unix /startup-dev.sh && chmod +x /startup-dev.sh
 
