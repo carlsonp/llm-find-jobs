@@ -1,0 +1,21 @@
+name: Bandit
+
+on:
+    # workflow_dispatch is required in order to manually run this workflow
+    workflow_dispatch:
+    push:
+      branches:
+        - master
+
+jobs:
+    analyze:
+        runs-on: ubuntu-latest
+        permissions:
+            # Required for all workflows
+            security-events: write
+            # Only required for workflows in private repositories
+            actions: read
+            contents: read
+        steps:
+            - name: Perform Bandit Analysis
+              uses: PyCQA/bandit-action@v1
