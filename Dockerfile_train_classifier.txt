@@ -15,8 +15,18 @@ RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # https://docs.docker.com/build/guide/mounts/#add-a-cache-mount
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install scikit-learn pandas joblib numpy
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked pip3 install uv
+
+ENV VIRTUAL_ENV=/.venv
+
+# Prevent uv from using hardlinks across filesystems
+ENV UV_LINK_MODE=copy
+
+COPY pyproject.toml uv.lock /
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev
 
 COPY /src/ /src/
 
-#CMD ["python3", "/src/job-classifier.py"]
+#CMD ["uv", "run", "/src/job-classifier.py"]

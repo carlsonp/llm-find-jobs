@@ -2,7 +2,8 @@ services:
 
   flask:
     build:
-      context: ./flask/
+      context: .
+      dockerfile: Dockerfile_flask
       args:
         DOCKER_BUILDKIT: 1
     hostname: flask
@@ -17,6 +18,7 @@ services:
       FLASK_DEBUG: 1
       LLM_API: ${LLM_API}
       LLM_MODEL: ${LLM_MODEL}
+      LLM_API_KEY: ${LLM_API_KEY}
       TZ: America/Chicago
     depends_on:
       - opensearch-node1
@@ -38,6 +40,7 @@ services:
       - ./data/:/data/:ro
       - ./models/:/models:rw
 
+  # used by rq and the worker
   valkey:
     image: valkey/valkey:latest
     restart: unless-stopped
@@ -45,8 +48,8 @@ services:
 
   worker:
     build:
-      context: ./flask/
-      dockerfile: Dockerfile_Worker
+      context: .
+      dockerfile: Dockerfile_worker
       args:
         DOCKER_BUILDKIT: 1
     hostname: worker
@@ -55,6 +58,7 @@ services:
       TZ: America/Chicago
       LLM_API: ${LLM_API}
       LLM_MODEL: ${LLM_MODEL}
+      LLM_API_KEY: ${LLM_API_KEY}
     depends_on:
       - valkey
     volumes:
@@ -97,10 +101,10 @@ services:
       OPENSEARCH_HOSTS: '["http://opensearch-node1:9200"]' # Define the OpenSearch nodes that OpenSearch Dashboards will query
       DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true" # don't use the security plugin for username + password
 
-
+  # used by searxng
   redis:
     container_name: redis
-    image: docker.io/valkey/valkey:8-alpine
+    image: docker.io/valkey/valkey:9-alpine
     command: valkey-server --save 30 1 --loglevel warning
     restart: unless-stopped
     volumes:

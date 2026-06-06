@@ -420,7 +420,11 @@ def create_app():
                 verify_certs=False,
             )
 
-            llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
+            llm = LLM(
+                model=os.environ["LLM_MODEL"],
+                api_key=os.environ["LLM_API_KEY"],
+                base_url=os.environ["LLM_API"],
+            )
 
             searcher = Agent(
                 role="Search",
@@ -610,6 +614,7 @@ def create_app():
                 },
             }
             similar_jobs = []
+            response = None
             # Execute the search for the top 5 similar jobs
             if client.indices.exists(index="jobs_index"):
                 response = client.search(index="jobs_index", body=search_query)

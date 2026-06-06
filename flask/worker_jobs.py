@@ -199,7 +199,11 @@ class Evaluation:
                 verify_certs=False,
             )
 
-            llm = LLM(model=os.environ["LLM_MODEL"], base_url=os.environ["LLM_API"])
+            llm = LLM(
+                model=os.environ["LLM_MODEL"],
+                api_key=os.environ["LLM_API_KEY"],
+                base_url=os.environ["LLM_API"],
+            )
 
             response = client.search(
                 index="personas_index",

@@ -1,0 +1,26 @@
+[project]
+name = "llm-find-jobs"
+version = "0.1.0"
+description = "A job posting classification model and LLM to help in finding open jobs. Also leverages CrewAI and LLMs for searching and finding relevant positions."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "crewai>=1.6.1",
+    "crewai-tools>=1.6.1",
+    "ddgs>=9.14.4",
+    "flask-compress>=1.24",
+    "gunicorn>=26.0.0",
+    "humanize>=4.15.0",
+    "joblib>=1.5.3",
+    "langchain-community>=0.4.2",
+    "numpy>=2.4.6",
+    "opensearch-py>=3.2.0",
+    "pandas>=3.0.3",
+    "pydantic>=2.13.4",
+    "rq>=2.9.1",
+    "scikit-learn>=1.9.0",
+    "selenium>=4.44.0",
+    "sentence-transformers>=5.5.1",
+    "spacy>=3.8.13",
+]
