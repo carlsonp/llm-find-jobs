@@ -15,7 +15,14 @@ from sentence_transformers import SentenceTransformer
 from langchain_community.tools import DuckDuckGoSearchResults, DuckDuckGoSearchRun
 from langchain_community.utilities import SearxSearchWrapper
 
-from worker_jobs import download_jobs, evaluate_location, evaluate_skills, evaluate_include_keywords, evaluate_exclude_keywords, evaluate_resume_match
+from worker_jobs import (
+    download_jobs,
+    evaluate_location,
+    evaluate_skills,
+    evaluate_include_keywords,
+    evaluate_exclude_keywords,
+    evaluate_resume_match,
+)
 
 from uuid import uuid4
 
@@ -81,7 +88,6 @@ def create_app():
                 response = client.search(index="jobs_index", body=query)
             if response:
                 buckets = response["aggregations"]["status_counts"]["buckets"]
-            response = None
 
             if request.args.get("textmessage"):
                 textmessage = request.args.get("textmessage")
@@ -102,7 +108,6 @@ def create_app():
     @app.route("/health")
     def health():
         return "Ok"
-    
 
     @app.route("/add_new_job", methods=["GET", "POST"])
     def add_new_job():
@@ -119,9 +124,9 @@ def create_app():
                 try:
                     client.create(
                         index="jobs_index",
-                        id=hashlib.md5(request.form['url'].encode()).hexdigest(),
+                        id=hashlib.md5(request.form["url"].encode()).hexdigest(),
                         body={
-                            "url": request.form['url'],
+                            "url": request.form["url"],
                             "content": "__EMPTY__",
                             "status": "Unknown",
                             "date_added": datetime.now().isoformat(),
@@ -133,18 +138,13 @@ def create_app():
                 # perform a refresh on our index
                 client.indices.refresh(index="jobs_index")
 
-                return redirect(
-                    url_for("homepage", textmessage="Job URL added")
-                )
+                return redirect(url_for("homepage", textmessage="Job URL added"))
             else:
-                return render_template(
-                    "add_new_job.html"
-                )
+                return render_template("add_new_job.html")
 
         except Exception as e:
             app.logger.error(e)
             return "Failure in post new job"
-        
 
     @app.route("/persona", defaults={"persona_id": None}, methods=["GET", "POST"])
     @app.route("/persona/<persona_id>", methods=["GET", "POST"])
@@ -318,28 +318,6 @@ def create_app():
             for res in results_day:
                 if "link" in res:
                     url_dict[res["link"]] += 1
-            # search DuckDuckGo with retry and exponential backoff
-            # rate limiting generally resets after about 1 minute?
-            # max_retries = 5
-            # retry_delay = 10  # start with this delay in seconds
-            # attempt = 0
-
-            # while attempt < max_retries:
-            #     try:
-            #         results = duckduckgosearchresults_tool.invoke(request.form['search-query'])
-            #         for res in results:
-            #             if "link" in res:
-            #                 url_dict[res["link"]] += 1
-            #         break  # success, exit retry loop
-            #     except Exception as e:
-            #         print(f"Error with DuckDuckGo search: {e}")
-            #         attempt += 1
-            #         if attempt == max_retries:
-            #             app.logger.info(f"Failed DuckDuckGo search after {max_retries} attempts for query: {request.form['search-query']}")
-            #             break
-            #         sleep_time = retry_delay * (2 ** (attempt - 1))  # exponential backoff
-            #         print(f"Retrying in {sleep_time} seconds...")
-            #         time.sleep(sleep_time)
 
             for url, hits in url_dict.items():
                 # do some basic cleanup on the URL
@@ -386,7 +364,14 @@ def create_app():
             client.indices.refresh(index=index_name)
 
             # enqueue a job to redis queue to download the jobs and do other evaluation tasks
-            for job in [download_jobs, evaluate_location, evaluate_skills, evaluate_include_keywords, evaluate_exclude_keywords, evaluate_resume_match]:
+            for job in [
+                download_jobs,
+                evaluate_location,
+                evaluate_skills,
+                evaluate_include_keywords,
+                evaluate_exclude_keywords,
+                evaluate_resume_match,
+            ]:
                 q.enqueue(job)
 
             return render_template(
@@ -396,7 +381,7 @@ def create_app():
         except Exception as e:
             app.logger.error(e)
             return "Failure in post job search"
-        
+
     @app.route("/deletejob/<job_id>", methods=["GET"])
     def deletejob(job_id):
         try:
@@ -407,25 +392,17 @@ def create_app():
                 verify_certs=False,
             )
 
-            response = client.delete(index="jobs_index", id=job_id)
+            client.delete(index="jobs_index", id=job_id)
 
             # Delete all job evaluations where the job_id is used
-            query = {
-                "query": {
-                    "term": {  # exact match
-                        "job_id": job_id
-                    }
-                }
-            }
-            response = client.delete_by_query(index="job_evaluations_index", body=query)
+            query = {"query": {"term": {"job_id": job_id}}}  # exact match
+            client.delete_by_query(index="job_evaluations_index", body=query)
 
             # perform a refresh on our index
             client.indices.refresh(index="jobs_index")
             client.indices.refresh(index="job_evaluations_index")
 
-            return redirect(
-                url_for("homepage", textmessage="Job deleted")
-            )
+            return redirect(url_for("homepage", textmessage="Job deleted"))
         except Exception as e:
             app.logger.error(e)
             return "Failure in delete job"
@@ -793,22 +770,14 @@ def create_app():
                 "size": 0,
                 "aggs": {
                     "jobs": {
-                    "terms": {
-                        "field": "job_id.keyword",
-                        "size": 1000,
-                        "order": {
-                        "sum_eval": "desc"
-                        }
-                    },
-                    "aggs": {
-                        "sum_eval": {
-                        "sum": {
-                            "field": "evaluation_value"
-                        }
-                        }
+                        "terms": {
+                            "field": "job_id.keyword",
+                            "size": 1000,
+                            "order": {"sum_eval": "desc"},
+                        },
+                        "aggs": {"sum_eval": {"sum": {"field": "evaluation_value"}}},
                     }
-                    }
-                }
+                },
             }
 
             if client.indices.exists(index="job_evaluations_index"):
@@ -839,7 +808,7 @@ def create_app():
         except Exception as e:
             app.logger.error(e)
             return "Failure in listing llm aligned jobs"
-        
+
     @app.route("/keyword_aligned_jobs")
     def keyword_aligned_jobs():
         try:
@@ -854,22 +823,14 @@ def create_app():
                 "size": 0,
                 "aggs": {
                     "jobs": {
-                    "terms": {
-                        "field": "job_id.keyword",
-                        "size": 1000,
-                        "order": {
-                        "sum_eval": "desc"
-                        }
-                    },
-                    "aggs": {
-                        "sum_eval": {
-                        "sum": {
-                            "field": "keyword_match"
-                        }
-                        }
+                        "terms": {
+                            "field": "job_id.keyword",
+                            "size": 1000,
+                            "order": {"sum_eval": "desc"},
+                        },
+                        "aggs": {"sum_eval": {"sum": {"field": "keyword_match"}}},
                     }
-                    }
-                }
+                },
             }
 
             if client.indices.exists(index="job_evaluations_index"):
@@ -905,7 +866,14 @@ def create_app():
     def manual_worker_enqueue():
         try:
             # enqueue a job to redis queue to download the jobs and do other evaluation tasks
-            for job in [download_jobs, evaluate_location, evaluate_skills, evaluate_include_keywords, evaluate_exclude_keywords, evaluate_resume_match]:
+            for job in [
+                download_jobs,
+                evaluate_location,
+                evaluate_skills,
+                evaluate_include_keywords,
+                evaluate_exclude_keywords,
+                evaluate_resume_match,
+            ]:
                 q.enqueue(job)
 
             return redirect(

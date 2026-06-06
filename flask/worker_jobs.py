@@ -143,7 +143,7 @@ def download_jobs():
                         status = "Not a Job"
 
                     # update the document with the entry
-                    response = client.update(
+                    client.update(
                         index="jobs_index",
                         id=doc["_id"],
                         body={
@@ -160,7 +160,7 @@ def download_jobs():
                 except Exception as e:
                     print(f"Error updating URL {doc['_source']['url']}: {e}")
                     # update the document so we don't try and fail again
-                    response = client.update(
+                    client.update(
                         index="jobs_index",
                         id=doc["_id"],
                         body={
@@ -308,7 +308,7 @@ class Evaluation:
                                         .count(check.strip().lower())
                                     )
 
-                                response = client.create(
+                                client.create(
                                     index="job_evaluations_index",
                                     id=str(uuid4()),
                                     body={
