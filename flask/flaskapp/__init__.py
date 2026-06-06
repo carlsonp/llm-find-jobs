@@ -341,8 +341,9 @@ def create_app():
                 # don't process certain websites
                 # arxiv.org - this is only for scholarly articles
                 # archive.org - this is generally for old content
+                # wikipedia.org - doesn't have jobs
                 # url= - usually redirect links
-                bad_link = re.compile(r"arxiv.org|archive.org|url\=")
+                bad_link = re.compile(r"arxiv.org|archive.org|wikipedia.org|url\=")
                 if bad_link.findall(url):
                     continue
 
