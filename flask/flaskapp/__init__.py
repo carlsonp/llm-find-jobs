@@ -653,6 +653,7 @@ def create_app():
                 verify_certs=False,
             )
 
+            insert_status = None
             if status == "NotJob":
                 insert_status = "Not a Job"
             elif status == "NotRelevant":
@@ -667,7 +668,7 @@ def create_app():
                 insert_status = "No Longer Available"
 
             if insert_status:
-                response = client.update(
+                client.update(
                     index="jobs_index",
                     id=document_id,
                     body={"doc": {"status": insert_status}},
@@ -743,13 +744,13 @@ def create_app():
                 verify_certs=False,
             )
 
-            response = client.delete(index="personas_index", id=persona_id)
+            client.delete(index="personas_index", id=persona_id)
 
             # perform a refresh on our index
             client.indices.refresh(index="personas_index")
 
             # delete the items in our job_evaluations_index that are now stale
-            response = client.delete_by_query(
+            client.delete_by_query(
                 index="job_evaluations_index",
                 body={"query": {"term": {"persona_id.keyword": {"value": persona_id}}}},
             )
