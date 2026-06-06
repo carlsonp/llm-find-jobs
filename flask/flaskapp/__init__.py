@@ -124,7 +124,9 @@ def create_app():
                 try:
                     client.create(
                         index="jobs_index",
-                        id=hashlib.md5(request.form["url"].encode()).hexdigest(),
+                        id=hashlib.md5(
+                            request.form["url"].encode(), usedforsecurity=False
+                        ).hexdigest(),
                         body={
                             "url": request.form["url"],
                             "content": "__EMPTY__",
@@ -349,7 +351,7 @@ def create_app():
                 try:
                     client.create(
                         index=index_name,
-                        id=hashlib.md5(url.encode()).hexdigest(),
+                        id=hashlib.md5(url.encode(), usedforsecurity=False).hexdigest(),
                         body={
                             "url": url,
                             "content": "__EMPTY__",
