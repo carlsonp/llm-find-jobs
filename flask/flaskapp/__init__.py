@@ -684,61 +684,6 @@ def create_app():
             app.logger.error(e)
             return "Failure in updating job status"
 
-    @app.route("/list_recent_jobs")
-    def list_recent_jobs():
-        try:
-            # Connect to OpenSearch
-            client = OpenSearch(
-                hosts=[{"host": "opensearch-node1", "port": "9200"}],
-                use_ssl=False,
-                verify_certs=False,
-            )
-
-            # Read pagination params from query string
-            search_after_date = request.args.get("search_after_date")
-            search_after_id = request.args.get("search_after_id")
-
-            size = 20  # items per page
-            query = {
-                "size": size,
-                "_source": ["id", "url", "status", "date_downloaded"],
-                "sort": [
-                    {"date_downloaded": "desc"},
-                    {"_id": "desc"},  # tiebreaker for stable sort
-                ],
-            }
-
-            # Add search_after if values are passed
-            if search_after_date and search_after_id:
-                query["search_after"] = [search_after_date, search_after_id]
-
-            if client.indices.exists(index="jobs_index"):
-                response = client.search(index="jobs_index", body=query)
-                jobs = response["hits"]["hits"]
-            else:
-                jobs = []
-
-            next_search_after = None
-            if jobs:
-                last = jobs[-1]
-                last_date = last["_source"]["date_downloaded"]
-                last_id = last["_id"]
-                next_search_after = {"date": last_date, "id": last_id}
-
-            for job in jobs:
-                downloaded_at = parser.isoparse(job["_source"]["date_downloaded"])
-                job["_source"]["date_downloaded"] = humanize.naturaltime(
-                    datetime.now(downloaded_at.tzinfo) - downloaded_at
-                )
-
-            return render_template(
-                "list_recent_jobs.html", jobs=jobs, next_search_after=next_search_after
-            )
-
-        except Exception as e:
-            app.logger.error(e)
-            return "Failure in listing all jobs"
-
     @app.route("/delete_persona/<persona_id>/", methods=["GET"])
     def delete_persona(persona_id):
         try:
@@ -765,111 +710,98 @@ def create_app():
             app.logger.error(e)
             return "Failure in deleting persona"
 
-    @app.route("/llm_aligned_jobs")
-    def llm_aligned_jobs():
+    def enrich_with_evaluations(client, jobs):
+        if not jobs:
+            return
+
+        job_ids = [j["_id"] for j in jobs]
+
+        agg_query = {
+            "size": 0,
+            "query": {"terms": {"job_id.keyword": job_ids}},
+            "aggs": {
+                "by_job": {
+                    "terms": {
+                        "field": "job_id.keyword",
+                        "size": len(job_ids),
+                    },
+                    "aggs": {
+                        "evaluation_sum": {"sum": {"field": "evaluation_value"}},
+                        "keyword_sum": {"sum": {"field": "keyword_match"}},
+                    },
+                }
+            },
+        }
+
+        resp = client.search(
+            index="job_evaluations_index",
+            body=agg_query,
+        )
+
+        lookup = {}
+
+        for bucket in resp["aggregations"]["by_job"]["buckets"]:
+            lookup[bucket["key"]] = {
+                "evaluation_sum": bucket["evaluation_sum"]["value"],
+                "keyword_sum": bucket["keyword_sum"]["value"],
+            }
+
+        for job in jobs:
+            stats = lookup.get(job["_id"], {})
+            src = job["_source"]
+
+            src["evaluation_sum"] = stats.get("evaluation_sum", 0)
+            src["keyword_sum"] = stats.get("keyword_sum", 0)
+
+    def format_jobs(jobs):
+        for job in jobs:
+            src = job["_source"]
+
+            if "date_downloaded" in src:
+                downloaded_at = parser.isoparse(src["date_downloaded"])
+
+                src["date_downloaded_human"] = humanize.naturaltime(
+                    datetime.now(downloaded_at.tzinfo) - downloaded_at
+                )
+
+    @app.route("/list_jobs")
+    def list_jobs():
         try:
-            # Connect to OpenSearch
             client = OpenSearch(
                 hosts=[{"host": "opensearch-node1", "port": "9200"}],
                 use_ssl=False,
                 verify_certs=False,
             )
 
-            query = {
-                "size": 0,
-                "aggs": {
-                    "jobs": {
-                        "terms": {
-                            "field": "job_id.keyword",
-                            "size": 1000,
-                            "order": {"sum_eval": "desc"},
-                        },
-                        "aggs": {"sum_eval": {"sum": {"field": "evaluation_value"}}},
-                    }
+            response = client.search(
+                index="jobs_index",
+                body={
+                    "size": 10000,
+                    "_source": [
+                        "id",
+                        "url",
+                        "status",
+                        "date_downloaded",
+                    ],
+                    "sort": [
+                        {"date_downloaded": "desc"},
+                    ],
                 },
-            }
-
-            if client.indices.exists(index="job_evaluations_index"):
-                response = client.search(index="job_evaluations_index", body=query)
-                jobs = response["aggregations"]["jobs"]["buckets"]
-            else:
-                jobs = []
-
-            final_results = []
-            for match in jobs:
-                job_data = client.get(
-                    index="jobs_index",
-                    id=match["key"],
-                    _source_includes=["_id", "status", "url"],
-                )
-                if job_data:
-                    final_results.append(
-                        {
-                            "status": job_data["_source"]["status"],
-                            "evaluation_value": int(match["sum_eval"]["value"]),
-                            "url": job_data["_source"]["url"],
-                            "id": match["key"],
-                        }
-                    )
-
-            return render_template("llm_aligned_jobs.html", jobs=final_results)
-
-        except Exception as e:
-            app.logger.error(e)
-            return "Failure in listing llm aligned jobs"
-
-    @app.route("/keyword_aligned_jobs")
-    def keyword_aligned_jobs():
-        try:
-            # Connect to OpenSearch
-            client = OpenSearch(
-                hosts=[{"host": "opensearch-node1", "port": "9200"}],
-                use_ssl=False,
-                verify_certs=False,
             )
 
-            query = {
-                "size": 0,
-                "aggs": {
-                    "jobs": {
-                        "terms": {
-                            "field": "job_id.keyword",
-                            "size": 1000,
-                            "order": {"sum_eval": "desc"},
-                        },
-                        "aggs": {"sum_eval": {"sum": {"field": "keyword_match"}}},
-                    }
-                },
-            }
+            jobs = response["hits"]["hits"]
 
-            if client.indices.exists(index="job_evaluations_index"):
-                response = client.search(index="job_evaluations_index", body=query)
-                jobs = response["aggregations"]["jobs"]["buckets"]
-            else:
-                jobs = []
+            enrich_with_evaluations(client, jobs)
+            format_jobs(jobs)
 
-            final_results = []
-            for match in jobs:
-                job_data = client.get(
-                    index="jobs_index",
-                    id=match["key"],
-                    _source_includes=["_id", "status", "url"],
-                )
-                if job_data:
-                    final_results.append(
-                        {
-                            "status": job_data["_source"]["status"],
-                            "keyword_match": int(match["sum_eval"]["value"]),
-                            "url": job_data["_source"]["url"],
-                            "id": match["key"],
-                        }
-                    )
-
-            return render_template("keyword_aligned_jobs.html", jobs=final_results)
+            return render_template(
+                "list_jobs.html",
+                jobs=jobs,
+            )
 
         except Exception as e:
-            app.logger.error(e)
-            return "Failure in listing keyword aligned jobs"
+            app.logger.exception(e)
+            return "Failure in listing all jobs"
 
     @app.route("/manual_worker_enqueue")
     def manual_worker_enqueue():

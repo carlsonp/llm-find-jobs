@@ -9,6 +9,7 @@
     <title>llm-find-jobs</title>
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/datatables.min.css') }}" rel="stylesheet">
     <style>
         .imgbox {
             display: grid;
@@ -23,6 +24,7 @@
     <script src="{{url_for('static', filename='js/iconify-icon.min.js')}}"></script>
     <script src="{{url_for('static', filename='js/bootstrap.bundle.min.js')}}"></script>
     <script src="{{url_for('static', filename='js/socket.io.min.js')}}"></script>
+    <script src="{{url_for('static', filename='js/datatables.min.js')}}"></script>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -38,13 +40,7 @@
                 <a class="nav-link" href="/run_job_search"><iconify-icon icon="material-symbols:search"></iconify-icon> Run Job Search</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="/list_recent_jobs"><iconify-icon icon="material-symbols:list-alt"></iconify-icon> List Recent Jobs</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/llm_aligned_jobs"><iconify-icon icon="material-symbols:location-on"></iconify-icon> List Top LLM Aligned Jobs</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/keyword_aligned_jobs"><iconify-icon icon="material-symbols:location-on"></iconify-icon> List Top Keyword Aligned Jobs</a>
+                <a class="nav-link" href="/list_jobs"><iconify-icon icon="material-symbols:list-alt"></iconify-icon> List Jobs</a>
             </li>
             <li class="nav-item">
                 <a class="nav-link" href="/manual_worker_enqueue"><iconify-icon icon="material-symbols:pending-actions"></iconify-icon> Trigger Manual Task Refresh</a>
