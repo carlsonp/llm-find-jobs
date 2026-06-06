@@ -672,7 +672,7 @@ def create_app():
                     body={"doc": {"status": insert_status}},
                 )
 
-            return redirect(f"/details/{document_id}")
+            return redirect(url_for("details", document_id=document_id))
         except Exception as e:
             app.logger.error(e)
             return "Failure in updating job status"
