@@ -116,11 +116,11 @@ def create_app():
                     verify_certs=False,
                 )
                 # add the URL if we don't already have it in our database
-                # store the md5 hash of the URL
+                # store the hash of the URL
                 try:
                     client.create(
                         index="jobs_index",
-                        id=hashlib.md5(
+                        id=hashlib.sha256(
                             request.form["url"].encode(), usedforsecurity=False
                         ).hexdigest(),
                         body={
@@ -355,11 +355,13 @@ def create_app():
                     continue
 
                 # add the URL if we don't already have it in our database
-                # store the md5 hash of the URL
+                # store the hash of the URL
                 try:
                     client.create(
                         index=index_name,
-                        id=hashlib.md5(url.encode(), usedforsecurity=False).hexdigest(),
+                        id=hashlib.sha256(
+                            url.encode(), usedforsecurity=False
+                        ).hexdigest(),
                         body={
                             "url": url,
                             "content": "__EMPTY__",
