@@ -3,26 +3,56 @@
 {% block content %}
 <div class="container mt-5">
     <h2 class="text-center">Enqueued Tasks</h2>
-    <p><iconify-icon icon="material-symbols:info" style="font-size: 30px;"></iconify-icon>
+
+    <p>
+        <iconify-icon icon="material-symbols:info" style="font-size: 30px;"></iconify-icon>
         These are backend tasks that happen behind the scenes.
         As you interact with the application, tasks may be queued here.
     </p>
+
+    <br>
+
+    <div class="alert alert-info">
+        Total Enqueued Tasks: <strong>{{ tasks|length }}</strong>
+    </div>
+
     <br>
 
     {% if tasks %}
-    <ul>
-        {% for task in tasks %}
-        <li>
-            <strong>ID:</strong> {{ task.id }} <br>
-            <strong>Func:</strong> {{ task.func_name }} <br>
-            <strong>Args:</strong> {{ task.args }} <br>
-            <strong>Status:</strong> {{ task.get_status() }}
-        </li>
-        {% endfor %}
-    </ul>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover table-bordered">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Function</th>
+                    <th>Arguments</th>
+                    <th>Metadata</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr>
+                    <td>{{ task.id }}</td>
+                    <td>{{ task.func_name }}</td>
+                    <td>
+                        <code>{{ task.args }}</code>
+                    </td>
+                    <td>
+                        {% if task.meta %}
+                            {% for key, value in task.meta.items() %}
+                                <strong>{{ key }}</strong>: {{ value }}<br>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted">No metadata</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
     <p>No tasks in the queue.</p>
     {% endif %}
-
 </div>
 {% endblock %}

@@ -17,11 +17,7 @@ from langchain_community.utilities import SearxSearchWrapper
 
 from worker_jobs import (
     download_jobs,
-    evaluate_location,
-    evaluate_skills,
-    evaluate_include_keywords,
-    evaluate_exclude_keywords,
-    evaluate_resume_match,
+    schedule_evaluation,
 )
 
 from uuid import uuid4
@@ -139,6 +135,17 @@ def create_app():
 
                 # perform a refresh on our index
                 client.indices.refresh(index="jobs_index")
+
+                # enqueue the job to redis queue to download the job and do other evaluation tasks
+                q.enqueue(download_jobs)
+                for evaluation_name in [
+                    "Location",
+                    "Skills",
+                    "Include Keywords",
+                    "Exclude Keywords",
+                    "Resume Match",
+                ]:
+                    q.enqueue(schedule_evaluation, evaluation_name)
 
                 return redirect(url_for("homepage", textmessage="Job URL added"))
             else:
@@ -367,15 +374,15 @@ def create_app():
             client.indices.refresh(index=index_name)
 
             # enqueue a job to redis queue to download the jobs and do other evaluation tasks
-            for job in [
-                download_jobs,
-                evaluate_location,
-                evaluate_skills,
-                evaluate_include_keywords,
-                evaluate_exclude_keywords,
-                evaluate_resume_match,
+            q.enqueue(download_jobs)
+            for evaluation_name in [
+                "Location",
+                "Skills",
+                "Include Keywords",
+                "Exclude Keywords",
+                "Resume Match",
             ]:
-                q.enqueue(job)
+                q.enqueue(schedule_evaluation, evaluation_name)
 
             return render_template(
                 "post_job_search.html", query=request.form["search-query"]
@@ -807,15 +814,15 @@ def create_app():
     def manual_worker_enqueue():
         try:
             # enqueue a job to redis queue to download the jobs and do other evaluation tasks
-            for job in [
-                download_jobs,
-                evaluate_location,
-                evaluate_skills,
-                evaluate_include_keywords,
-                evaluate_exclude_keywords,
-                evaluate_resume_match,
+            q.enqueue(download_jobs)
+            for evaluation_name in [
+                "Location",
+                "Skills",
+                "Include Keywords",
+                "Exclude Keywords",
+                "Resume Match",
             ]:
-                q.enqueue(job)
+                q.enqueue(schedule_evaluation, evaluation_name)
 
             return redirect(
                 url_for("homepage", textmessage="Tasks queued successfully")
